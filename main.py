@@ -219,7 +219,7 @@ async def income_sum_handle(message: types.Message, state: FSMContext):
 async def income_file_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись к шагу ввода суммы",
+            await bot.send_message(message.from_user.id, "Так сколько подняли бабла, брат?",
                                    reply_markup=back_keyboard)
             await MenuStates.income.set()
 
@@ -266,7 +266,9 @@ async def fraction_handle(message: types.Message, state: FSMContext):
 async def fraction_pay_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись на шаг выбора получателя",
+            await bot.send_message(message.from_user.id, "Выплатить: отчитаться о выплате доли себе или брату.\n"
+                                                         "К выплате: посмотреть, сколько на сегодня должны выплатить"
+                                                         " тебе или брату.",
                                    reply_markup=fraction_choose_who_keyboard)
             await MenuStates.fraction_choose_who.set()
         case _:
@@ -290,7 +292,7 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
 async def fraction_to_who_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись к шагу выбора доли",
+            await bot.send_message(message.from_user.id, "Так выплачиваем или хотим поинтересоваться?",
                                    reply_markup=fraction_keyboard)
             await MenuStates.fraction_enter.set()
 
@@ -378,7 +380,7 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
 async def report_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись к выбору периода",
+            await bot.send_message(message.from_user.id, "Так за какой период?",
                                    reply_markup=choose_period_keyboard)
             await MenuStates.report.set()
 
@@ -408,7 +410,7 @@ async def report_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
             calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
-            await bot.send_message(message.from_user.id, "Вы вернулись к выбору начала периода",
+            await bot.send_message(message.from_user.id, "Откуда начинаем?",
                                    reply_markup=back_keyboard)
             await bot.send_message(message.from_user.id, "Календарь",
                                    reply_markup=calenda)
