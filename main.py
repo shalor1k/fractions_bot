@@ -55,9 +55,11 @@ def generate_next_month_button(year, month):
     button = InlineKeyboardButton(">", callback_data=f"calendar-month-{next_year}-{next_month}")
     return button
 
+
 def generate_calendar(year, month):
     # Создаем кнопки для календаря
     keyboard = InlineKeyboardMarkup(row_width=7)
+    keyboard.add(InlineKeyboardButton(f"{calendar.month_name[month]} {year}", callback_data="ignore"))
     # Получаем первый день месяца
     first_day = datetime.date(year, month, 1)
     # Получаем день недели первого дня месяца (0 - понедельник, 6 - воскресенье)
@@ -68,7 +70,7 @@ def generate_calendar(year, month):
     days_of_week = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
     row = []
     for day in days_of_week:
-        row.append(types.InlineKeyboardButton(text=day, callback_data=f"day_{day}"))
+        row.append(types.InlineKeyboardButton(text=day, callback_data=f"ignore"))
     keyboard.row(*row)
     day = 1
     for i in range(6):
@@ -89,16 +91,17 @@ def generate_calendar(year, month):
     next_month_button = generate_next_month_button(year, month)
     keyboard.row(
         prev_month_button,
-        InlineKeyboardButton(f"{calendar.month_name[month]} {year}", callback_data="ignore"),
         next_month_button
     )
     return keyboard
+
 
 def gen_markup(texts: int, prefix: str, row_width: int) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup(row_width=row_width)
     for num in range(texts):
         markup.insert(InlineKeyboardButton(f"{prefix} {num + 1}", callback_data=f"{prefix} {num + 1}"))
     return markup
+
 
 # Создаём бота исходя из полученного токена
 bot = Bot(token="6395802297:AAGSL6IBKgTVN8dPRHNVjUzLHuLCHy_y5lM")
@@ -126,7 +129,7 @@ back_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True
 async def command_start(message: types.Message, state: FSMContext):
     await state.finish()
 
-    await bot.send_message(message.from_user.id, "Приветствую вас в боте для расчёта долей",
+    await bot.send_message(message.from_user.id, "Салам, брат! Речь пойдет о трехзначных цифрах 💷💷💷",
                            reply_markup=main_menu_keyboard)
     await MenuStates.start.set()
 
@@ -135,15 +138,18 @@ async def command_start(message: types.Message, state: FSMContext):
 async def menu_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Расход":
-            await bot.send_message(message.from_user.id, "Отправьте сумму", reply_markup=back_keyboard)
+            await bot.send_message(message.from_user.id, "Сколько потратили?", reply_markup=back_keyboard)
             await MenuStates.expense.set()
 
         case "Доход":
-            await bot.send_message(message.from_user.id, "Отправьте сумму", reply_markup=back_keyboard)
+            await bot.send_message(message.from_user.id, "Слава Всевышнему! Сколько подняли?",
+                                   reply_markup=back_keyboard)
             await MenuStates.income.set()
 
         case "Доли":
-            await bot.send_message(message.from_user.id, "Выберите один из пунктов", reply_markup=fraction_keyboard)
+            await bot.send_message(message.from_user.id, "Выплатить: отчитаться о выплате доли себе или брату.\n"
+                                                         "К выплате: посмотреть, сколько на сегодня должны выплатить"
+                                                         " тебе или брату.", reply_markup=fraction_keyboard)
             await MenuStates.fraction_enter.set()
 
         case "Отчёт":
@@ -151,25 +157,27 @@ async def menu_handle(message: types.Message, state: FSMContext):
             await MenuStates.report.set()
 
         case _:
-            await bot.send_message(message.from_user.id, "Извините, но я вас не понимаю")
+            await bot.send_message(message.from_user.id, "Извини, брат, но тут надо пункты выбирать")
 
 
 @dp.message_handler(state=MenuStates.expense)
 async def expense_sum_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись в меню", reply_markup=main_menu_keyboard)
+            await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
             await MenuStates.start.set()
 
         case _:
             try:
                 num = message.text.replace(",", ".")
                 float(num)
-                await bot.send_message(message.from_user.id, "Теперь пришлите файл", reply_markup=back_keyboard)
+                await bot.send_message(message.from_user.id, "На что мы потратили столько денег, брат?"
+                                                             " Поясни в двух словах.", reply_markup=back_keyboard)
                 await MenuStates.expense_enter_file.set()
 
             except ValueError:
-                await bot.send_message(message.from_user.id, "Я принимаю только числа", reply_markup=back_keyboard)
+                await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
+                                       reply_markup=back_keyboard)
 
             except Exception as e:
                 print(f"Ошибка в expense_sum_handle {e}")
@@ -179,7 +187,7 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
 async def expense_file_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись к шагу ввода суммы",
+            await bot.send_message(message.from_user.id, "Так сколько потратили, брат?",
                                    reply_markup=back_keyboard)
             await MenuStates.expense.set()
 
@@ -188,18 +196,20 @@ async def expense_file_handle(message: types.Message, state: FSMContext):
 async def income_sum_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись в меню", reply_markup=main_menu_keyboard)
+            await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
             await MenuStates.start.set()
 
         case _:
             try:
                 num = message.text.replace(",", ".")
                 float(num)
-                await bot.send_message(message.from_user.id, "Теперь пришлите файл", reply_markup=back_keyboard)
+                await bot.send_message(message.from_user.id, "На чем подняли такую котлету?"
+                                                             " Поясни пацанам по-братски.", reply_markup=back_keyboard)
                 await MenuStates.income_enter_file.set()
 
             except ValueError:
-                await bot.send_message(message.from_user.id, "Я принимаю только числа", reply_markup=back_keyboard)
+                await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
+                                       reply_markup=back_keyboard)
 
             except Exception as e:
                 print(f"Ошибка в income_sum_handle {e}")
@@ -218,35 +228,37 @@ async def income_file_handle(message: types.Message, state: FSMContext):
 async def fraction_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись в меню", reply_markup=main_menu_keyboard)
+            await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
             await MenuStates.start.set()
 
         case "Выплатить":
-            await bot.send_message(message.from_user.id, "Выберите кому", reply_markup=fraction_choose_who_keyboard)
+            await bot.send_message(message.from_user.id, "Кому выплачиваем долю?",
+                                   reply_markup=fraction_choose_who_keyboard)
             await MenuStates.fraction_choose_who.set()
 
         case "К выплате":
-            await bot.send_message(message.from_user.id, "Выберите кому", reply_markup=fraction_choose_who_keyboard)
+            await bot.send_message(message.from_user.id, "Кому?", reply_markup=fraction_choose_who_keyboard)
             await MenuStates.fraction_to_who.set()
 
         case _:
-            await bot.send_message(message.from_user.id, "Выберите один из пунктов", reply_markup=fraction_keyboard)
+            await bot.send_message(message.from_user.id, "Извини, брат, но тут надо пункты выбирать",
+                                   reply_markup=fraction_keyboard)
 
 
 @dp.message_handler(state=MenuStates.fraction_choose_who)
 async def fraction_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись к шагу выбора доли",
+            await bot.send_message(message.from_user.id, "Так выплачиваем или хотим поинтересоваться?",
                                    reply_markup=fraction_keyboard)
             await MenuStates.fraction_enter.set()
 
         case "Миша" | "Дато" | "Глеб":
-            await bot.send_message(message.from_user.id, "Отправьте сумму", reply_markup=back_keyboard)
+            await bot.send_message(message.from_user.id, "Сколько выплатили?", reply_markup=back_keyboard)
             await MenuStates.fraction_pay.set()
 
         case _:
-            await bot.send_message(message.from_user.id, "Выберите один из вариантов с клавиатуры",
+            await bot.send_message(message.from_user.id, "Извини, брат, но тут надо пункты выбирать",
                                    reply_markup=fraction_choose_who_keyboard)
 
 
@@ -262,12 +274,12 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
                 num = message.text.replace(",", ".")
                 float(num)
 
-                await bot.send_message(message.from_user.id, "Вы успешно заполнили долю",
+                await bot.send_message(message.from_user.id, "Принято",
                                        reply_markup=main_menu_keyboard)
                 await MenuStates.start.set()
 
             except ValueError:
-                await bot.send_message(message.from_user.id, "Я принимаю только числа",
+                await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
                                        reply_markup=back_keyboard)
 
             except Exception as e:
@@ -283,11 +295,12 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
             await MenuStates.fraction_enter.set()
 
         case "Миша" | "Дато" | "Глеб":
-            await bot.send_message(message.from_user.id, "Отправьте сумму", reply_markup=back_keyboard)
+            await bot.send_message(message.from_user.id, "Пример: На сегодня ему должны выплатить 100 рублей",
+                                   reply_markup=back_keyboard)
             await MenuStates.fraction_to_pay.set()
 
         case _:
-            await bot.send_message(message.from_user.id, "Выберите один из вариантов с клавиатуры",
+            await bot.send_message(message.from_user.id, "Извини, брат, но тут надо пункты выбирать",
                                    reply_markup=fraction_choose_who_keyboard)
 
 
@@ -295,7 +308,7 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
 async def fraction_pay_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись на шаг выбора получателя",
+            await bot.send_message(message.from_user.id, "Кому выплачиваем долю?",
                                    reply_markup=fraction_choose_who_keyboard)
             await MenuStates.fraction_to_who.set()
         case _:
@@ -303,12 +316,11 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
                 num = message.text.replace(",", ".")
                 float(num)
 
-                await bot.send_message(message.from_user.id, "Вы успешно заполнили долю",
-                                       reply_markup=main_menu_keyboard)
+                await bot.send_message(message.from_user.id, "Принято", reply_markup=main_menu_keyboard)
                 await MenuStates.start.set()
 
             except ValueError:
-                await bot.send_message(message.from_user.id, "Я принимаю только числа",
+                await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
                                        reply_markup=back_keyboard)
 
             except Exception as e:
@@ -319,34 +331,47 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
 async def report_handle(message: types.Message, state: FSMContext):
     match message.text:
         case "Назад":
-            await bot.send_message(message.from_user.id, "Вы вернулись в меню", reply_markup=main_menu_keyboard)
+            await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
             await MenuStates.start.set()
 
         case "Текущий месяц":
             await bot.send_message(message.from_user.id, "Отправляю данные")
-            await bot.send_message(message.from_user.id, "Вы вернулись в меню", reply_markup=main_menu_keyboard)
+            await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
 
         case "Период":
             calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
             await bot.send_message(message.from_user.id, 'Сегодня - ' +
-                                   str(datetime.datetime.today().strftime("%-d %B %Y")), reply_markup=back_keyboard)
-            await bot.send_message(message.from_user.id, "Выберите дату начала отчётного периода",
+                                   str(datetime.datetime.today().strftime("%#d %B %Y")), reply_markup=back_keyboard)
+            await bot.send_message(message.from_user.id, "Выбери дату начала отчётного периода",
                                    reply_markup=calenda)
             await MenuStates.choose_second_period.set()
 
         case _:
-            await bot.send_message(message.from_user.id, "Выберите один из пунктов",
+            await bot.send_message(message.from_user.id, "Извини, брат, но тут надо пункты выбирать",
                                    reply_markup=choose_period_keyboard)
 
 
 @dp.callback_query_handler(state=MenuStates.choose_second_period)
 async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
-    calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
-    await bot.send_message(callback_query.from_user.id, "Выберите дату окончания отчётного периода",
-                           reply_markup=back_keyboard)
-    await bot.send_message(callback_query.from_user.id, "Календарь",
-                           reply_markup=calenda)
-    await MenuStates.send_report.set()
+    if callback_query.data.startswith('calendar-month'):
+        year, month = callback_query.data.split('-')[2:]
+        year, month = int(year), int(month)
+        # Создаем новый календарь
+        calendar_markup = generate_calendar(year, month)
+        # Отправляем обновленный календарь
+        await bot.edit_message_reply_markup(callback_query.message.chat.id, callback_query.message.message_id,
+                                            reply_markup=calendar_markup)
+
+    else:
+        selected_date = callback_query.data.split('-')[2]
+        string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
+        date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
+        calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
+        await bot.send_message(callback_query.from_user.id, "Выбери дату окончания отчётного периода",
+                               reply_markup=back_keyboard)
+        await bot.send_message(callback_query.from_user.id, "Календарь",
+                               reply_markup=calenda)
+        await MenuStates.send_report.set()
 
 
 @dp.message_handler(state=MenuStates.choose_second_period)
@@ -360,9 +385,22 @@ async def report_handle(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(state=MenuStates.send_report)
 async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
-    await bot.send_message(callback_query.from_user.id, "Генерирую отчёт")
-    await bot.send_message(callback_query.from_user.id, "Меню", reply_markup=main_menu_keyboard)
-    await MenuStates.start.set()
+    if callback_query.data.startswith('calendar-month'):
+        year, month = callback_query.data.split('-')[2:]
+        year, month = int(year), int(month)
+        # Создаем новый календарь
+        calendar_markup = generate_calendar(year, month)
+        # Отправляем обновленный календарь
+        await bot.edit_message_reply_markup(callback_query.message.chat.id, callback_query.message.message_id,
+                                            reply_markup=calendar_markup)
+
+    else:
+        selected_date = callback_query.data.split('-')[2]
+        string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
+        date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
+        await bot.send_message(callback_query.from_user.id, "Генерирую отчёт")
+        await bot.send_message(callback_query.from_user.id, "Меню", reply_markup=main_menu_keyboard)
+        await MenuStates.start.set()
 
 
 @dp.message_handler(state=MenuStates.send_report)
