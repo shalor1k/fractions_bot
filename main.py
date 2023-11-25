@@ -1,3 +1,6 @@
+import os
+
+import requests
 from aiogram import Bot, types
 # Память для машины состояний и машина состояний
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -108,20 +111,23 @@ bot = Bot(token="6395802297:AAGSL6IBKgTVN8dPRHNVjUzLHuLCHy_y5lM")
 dp = Dispatcher(bot, storage=storage)
 
 main_menu_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        KeyboardButton(text="Расход"), KeyboardButton(text="Доход"), KeyboardButton(text="Доли"),
-        KeyboardButton(text="Отчёт"))
+    KeyboardButton(text="Расход"), KeyboardButton(text="Доход"), KeyboardButton(text="Доли"),
+    KeyboardButton(text="Отчёт"))
 
 fraction_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        KeyboardButton(text="Выплатить"), KeyboardButton(text="К выплате")).add(KeyboardButton(text="Назад"))
+    KeyboardButton(text="Выплатить"), KeyboardButton(text="К выплате")).add(KeyboardButton(text="Назад"))
 
 fraction_choose_who_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        KeyboardButton(text="Миша"), KeyboardButton(text="Дато"), KeyboardButton(text="Глеб")).add(
+    KeyboardButton(text="Миша"), KeyboardButton(text="Дато"), KeyboardButton(text="Глеб")).add(
     KeyboardButton(text="Назад"))
 
 choose_period_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-        KeyboardButton(text="Текущий месяц"), KeyboardButton(text="Период")).add(KeyboardButton(text="Назад"))
+    KeyboardButton(text="Текущий месяц"), KeyboardButton(text="Период")).add(KeyboardButton(text="Назад"))
 
 back_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(KeyboardButton(text="Назад"))
+
+back_n_next_button = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+    KeyboardButton(text="Далее"), KeyboardButton(text="Назад"))
 
 
 # Обработка команды /start
@@ -183,13 +189,59 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
                 print(f"Ошибка в expense_sum_handle {e}")
 
 
-@dp.message_handler(state=MenuStates.expense_enter_file)
-async def expense_file_handle(message: types.Message, state: FSMContext):
-    match message.text:
-        case "Назад":
-            await bot.send_message(message.from_user.id, "Так сколько потратили, брат?",
-                                   reply_markup=back_keyboard)
-            await MenuStates.expense.set()
+# Обработчик для получения фотографий
+@dp.message_handler(content_types=types.ContentTypes.PHOTO, state=MenuStates.expense_enter_file)
+async def handle_photos(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "photos" not in data:
+            data["photos"] = []
+
+        # Добавление фотографий в список
+        data["photos"].append(message.photo[-1].file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
+
+
+# Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.expense_enter_file)
+async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
+    if 'Назад' in message.text:
+        await bot.send_message(message.from_user.id, "Так сколько потратили, брат?",
+                               reply_markup=back_keyboard)
+        await MenuStates.expense.set()
+
+    elif "Далее" in message.text:
+        # Получение списка сохраненных фотографий из состояния
+        async with state.proxy() as data:
+            photos = data["photos"]
+            photos_for_save = []
+
+        os.makedirs('photos', exist_ok=True)
+
+        # Обработка сохраненных фотографий
+        for photo_id in photos:
+            file_info = await bot.get_file(photo_id)
+            file_path = file_info.file_path
+
+            # Сохранение фотографии локально
+            await bot.download_file(file_path, f'photos/{photo_id}.jpg')
+            photos_for_save.append(f'photos/{photo_id}.jpg')
+
+        # await db.update_photos_in_cars_announcement(message.from_user.id, photos_for_save)
+
+        # Очистка состояния
+        await state.reset_state()
+
+        # Ответное сообщение об успешной обработке
+        await message.reply("Зафиксировано", reply_markup=main_menu_keyboard)
+        await MenuStates.start.set()
+
+    else:
+        await bot.send_message(message.from_user.id, "Извините, я вас не понимаю,"
+                                                     " отправьте мне фото, видео, документ или нажмите на кнопку",
+                               reply_markup=back_keyboard)
 
 
 @dp.message_handler(state=MenuStates.income)
@@ -215,13 +267,58 @@ async def income_sum_handle(message: types.Message, state: FSMContext):
                 print(f"Ошибка в income_sum_handle {e}")
 
 
-@dp.message_handler(state=MenuStates.income_enter_file)
-async def income_file_handle(message: types.Message, state: FSMContext):
-    match message.text:
-        case "Назад":
-            await bot.send_message(message.from_user.id, "Так сколько подняли бабла, брат?",
-                                   reply_markup=back_keyboard)
-            await MenuStates.income.set()
+@dp.message_handler(content_types=types.ContentTypes.PHOTO, state=MenuStates.income_enter_file)
+async def handle_photos(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "photos" not in data:
+            data["photos"] = []
+
+        # Добавление фотографий в список
+        data["photos"].append(message.photo[-1].file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
+
+
+# Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.income_enter_file)
+async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
+    if 'Назад' in message.text:
+        await bot.send_message(message.from_user.id, "Так сколько подняли бабла, брат?",
+                               reply_markup=back_keyboard)
+        await MenuStates.income.set()
+
+    elif "Далее" in message.text:
+        # Получение списка сохраненных фотографий из состояния
+        async with state.proxy() as data:
+            photos = data["photos"]
+            photos_for_save = []
+
+        os.makedirs('photos', exist_ok=True)
+
+        # Обработка сохраненных фотографий
+        for photo_id in photos:
+            file_info = await bot.get_file(photo_id)
+            file_path = file_info.file_path
+
+            # Сохранение фотографии локально
+            await bot.download_file(file_path, f'photos/{photo_id}.jpg')
+            photos_for_save.append(f'photos/{photo_id}.jpg')
+
+        # await db.update_photos_in_cars_announcement(message.from_user.id, photos_for_save)
+
+        # Очистка состояния
+        await state.reset_state()
+
+        # Ответное сообщение об успешной обработке
+        await message.reply("Зафиксировано", reply_markup=main_menu_keyboard)
+        await MenuStates.start.set()
+
+    else:
+        await bot.send_message(message.from_user.id, "Извините, я вас не понимаю,"
+                                                     " отправьте мне фото, видео, документ или нажмите на кнопку",
+                               reply_markup=back_keyboard)
 
 
 @dp.message_handler(state=MenuStates.fraction_enter)
@@ -416,5 +513,6 @@ async def report_handle(message: types.Message, state: FSMContext):
                                    reply_markup=calenda)
 
             await MenuStates.choose_second_period.set()
+
 
 executor.start_polling(dp, skip_updates=True)
