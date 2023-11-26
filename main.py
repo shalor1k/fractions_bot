@@ -1,9 +1,10 @@
 import os
+import logging
 
-import requests
 from aiogram import Bot, types
 # Память для машины состояний и машина состояний
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.dispatcher import Dispatcher
 # Машина состояний импорты
 from aiogram.dispatcher import FSMContext
@@ -106,9 +107,12 @@ def gen_markup(texts: int, prefix: str, row_width: int) -> InlineKeyboardMarkup:
     return markup
 
 
+logging.basicConfig(level=logging.INFO)
+
 # Создаём бота исходя из полученного токена
 bot = Bot(token="6395802297:AAGSL6IBKgTVN8dPRHNVjUzLHuLCHy_y5lM")
 dp = Dispatcher(bot, storage=storage)
+dp.middleware.setup(LoggingMiddleware())
 
 main_menu_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
     KeyboardButton(text="Расход"), KeyboardButton(text="Доход"), KeyboardButton(text="Доли"),
@@ -189,7 +193,6 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
                 print(f"Ошибка в expense_sum_handle {e}")
 
 
-# Обработчик для получения фотографий
 @dp.message_handler(content_types=types.ContentTypes.PHOTO, state=MenuStates.expense_enter_file)
 async def handle_photos(message: types.Message, state: FSMContext):
     # Получение текущего состояния пользователя
@@ -204,9 +207,37 @@ async def handle_photos(message: types.Message, state: FSMContext):
     await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
 
 
+@dp.message_handler(content_types=types.ContentTypes.DOCUMENT, state=MenuStates.expense_enter_file)
+async def handle_docs(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "documents" not in data:
+            data["documents"] = []
+
+        # Добавление фотографий в список
+        data["documents"].append(message.document.file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Документ добавлен", reply_markup=back_n_next_button)
+
+
+@dp.message_handler(content_types=types.ContentTypes.VIDEO, state=MenuStates.expense_enter_file)
+async def handle_docs(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "video" not in data:
+            data["video"] = []
+
+        # Добавление фотографий в список
+        data["video"].append(message.photo[-1].file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Видео добавлено", reply_markup=back_n_next_button)
+
+
 # Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
 @dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.expense_enter_file)
-async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
+async def choose_will_be_photo(message: types.Message, state: FSMContext):
     if 'Назад' in message.text:
         await bot.send_message(message.from_user.id, "Так сколько потратили, брат?",
                                reply_markup=back_keyboard)
@@ -215,19 +246,62 @@ async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
     elif "Далее" in message.text:
         # Получение списка сохраненных фотографий из состояния
         async with state.proxy() as data:
-            photos = data["photos"]
-            photos_for_save = []
+            try:
+                photos = data["photos"]
 
-        os.makedirs('photos', exist_ok=True)
+                photos_for_save = []
 
-        # Обработка сохраненных фотографий
-        for photo_id in photos:
-            file_info = await bot.get_file(photo_id)
-            file_path = file_info.file_path
+                os.makedirs('photos', exist_ok=True)
 
-            # Сохранение фотографии локально
-            await bot.download_file(file_path, f'photos/{photo_id}.jpg')
-            photos_for_save.append(f'photos/{photo_id}.jpg')
+                # Обработка сохраненных фотографий
+                for photo_id in photos:
+                    file_info = await bot.get_file(photo_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'photos/{photo_id}.jpg')
+                    photos_for_save.append(f'photos/{photo_id}.jpg')
+
+            except KeyError:
+                pass
+
+            try:
+                documents = data["documents"]
+
+                documents_for_save = []
+
+                os.makedirs('documents', exist_ok=True)
+
+                # Обработка сохраненных документов
+                for docs_id in documents:
+                    file_info = await bot.get_file(docs_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'documents/{docs_id}.pdf')
+                    documents_for_save.append(f'documents/{docs_id}.pdf')
+
+            except KeyError:
+                pass
+
+            try:
+                video = data["video"]
+
+                video_for_save = []
+
+                os.makedirs('video', exist_ok=True)
+
+                # Обработка сохраненных видео
+                for video_id in video:
+                    file_info = await bot.get_file(video_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'video/{video_id}.mp4')
+                    video_for_save.append(f'video/{video_id}.mp4')
+
+            except KeyError:
+                pass
 
         # await db.update_photos_in_cars_announcement(message.from_user.id, photos_for_save)
 
@@ -239,8 +313,7 @@ async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
         await MenuStates.start.set()
 
     else:
-        await bot.send_message(message.from_user.id, "Извините, я вас не понимаю,"
-                                                     " отправьте мне фото, видео, документ или нажмите на кнопку",
+        await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
                                reply_markup=back_keyboard)
 
 
@@ -281,9 +354,37 @@ async def handle_photos(message: types.Message, state: FSMContext):
     await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
 
 
+@dp.message_handler(content_types=types.ContentTypes.DOCUMENT, state=MenuStates.income_enter_file)
+async def handle_docs(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "documents" not in data:
+            data["documents"] = []
+
+        # Добавление фотографий в список
+        data["documents"].append(message.document.file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Документ добавлен", reply_markup=back_n_next_button)
+
+
+@dp.message_handler(content_types=types.ContentTypes.VIDEO, state=MenuStates.income_enter_file)
+async def handle_docs(message: types.Message, state: FSMContext):
+    # Получение текущего состояния пользователя
+    async with state.proxy() as data:
+        if "video" not in data:
+            data["video"] = []
+
+        # Добавление фотографий в список
+        data["video"].append(message.photo[-1].file_id)
+
+    # Ответное сообщение о сохранении фотографии
+    await message.reply("Видео добавлено", reply_markup=back_n_next_button)
+
+
 # Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
 @dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.income_enter_file)
-async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
+async def choose_will_be_photo(message: types.Message, state: FSMContext):
     if 'Назад' in message.text:
         await bot.send_message(message.from_user.id, "Так сколько подняли бабла, брат?",
                                reply_markup=back_keyboard)
@@ -292,19 +393,62 @@ async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
     elif "Далее" in message.text:
         # Получение списка сохраненных фотографий из состояния
         async with state.proxy() as data:
-            photos = data["photos"]
-            photos_for_save = []
+            try:
+                photos = data["photos"]
 
-        os.makedirs('photos', exist_ok=True)
+                photos_for_save = []
 
-        # Обработка сохраненных фотографий
-        for photo_id in photos:
-            file_info = await bot.get_file(photo_id)
-            file_path = file_info.file_path
+                os.makedirs('photos', exist_ok=True)
 
-            # Сохранение фотографии локально
-            await bot.download_file(file_path, f'photos/{photo_id}.jpg')
-            photos_for_save.append(f'photos/{photo_id}.jpg')
+                # Обработка сохраненных фотографий
+                for photo_id in photos:
+                    file_info = await bot.get_file(photo_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'photos/{photo_id}.jpg')
+                    photos_for_save.append(f'photos/{photo_id}.jpg')
+
+            except KeyError:
+                pass
+
+            try:
+                documents = data["documents"]
+
+                documents_for_save = []
+
+                os.makedirs('documents', exist_ok=True)
+
+                # Обработка сохраненных документов
+                for docs_id in documents:
+                    file_info = await bot.get_file(docs_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'documents/{docs_id}.pdf')
+                    documents_for_save.append(f'documents/{docs_id}.pdf')
+
+            except KeyError:
+                pass
+
+            try:
+                video = data["video"]
+
+                video_for_save = []
+
+                os.makedirs('video', exist_ok=True)
+
+                # Обработка сохраненных видео
+                for video_id in video:
+                    file_info = await bot.get_file(video_id)
+                    file_path = file_info.file_path
+
+                    # Сохранение фотографии локально
+                    await bot.download_file(file_path, f'video/{video_id}.mp4')
+                    video_for_save.append(f'video/{video_id}.mp4')
+
+            except KeyError:
+                pass
 
         # await db.update_photos_in_cars_announcement(message.from_user.id, photos_for_save)
 
@@ -316,8 +460,7 @@ async def choose_will_be_cars_photo(message: types.Message, state: FSMContext):
         await MenuStates.start.set()
 
     else:
-        await bot.send_message(message.from_user.id, "Извините, я вас не понимаю,"
-                                                     " отправьте мне фото, видео, документ или нажмите на кнопку",
+        await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
                                reply_markup=back_keyboard)
 
 
