@@ -574,9 +574,11 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
 
             fraction = fraction_without_percent*0.4
 
+            old_fraction = await db.get_old_fraction(message.from_user.id)
+
             await db.update_fraction(message.from_user.id, fraction, "Миша")
 
-            await db.update_positive_debt(message.from_user.id, fraction)
+            await db.update_positive_debt(message.from_user.id, old_fraction)
 
             debt = await db.get_debt(message.from_user.id)
 
@@ -610,11 +612,13 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
         case "Глеб":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
+            old_fraction = await db.get_old_fraction(message.from_user.id)
+
             fraction = fraction_without_percent * 0.36
 
             await db.update_fraction(message.from_user.id, fraction, "Глеб")
 
-            await db.update_positive_debt(message.from_user.id, fraction)
+            await db.update_positive_debt(message.from_user.id, old_fraction)
 
             debt = await db.get_debt(message.from_user.id)
 
