@@ -2,8 +2,8 @@ import datetime
 
 import psycopg2
 
-conn = psycopg2.connect(dbname="fractions", user="postgres",
-                        password="bd260703", host="192.168.0.10")
+conn = psycopg2.connect(dbname="fraction", user="postgres",
+                        password="AiRa6779", host="localhost")
 cur = conn.cursor()
 
 

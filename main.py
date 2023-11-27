@@ -1,6 +1,7 @@
 import os
 import logging
 
+import aiogram.utils.exceptions
 from aiogram import Bot, types
 # Память для машины состояний и машина состояний
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -286,7 +287,12 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 # Обработка сохраненных документов
                 for docs_id in documents:
-                    file_info = await bot.get_file(docs_id)
+                    try:
+                        file_info = await bot.get_file(docs_id)
+
+                    except aiogram.utils.exceptions.FileIsTooBig:
+                        await message.reply("Брат, слишком большой файл ты мне отправил")
+
                     file_path = file_info.file_path
 
                     # Сохранение фотографии локально
@@ -444,7 +450,12 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 # Обработка сохраненных документов
                 for docs_id in documents:
-                    file_info = await bot.get_file(docs_id)
+                    try:
+                        file_info = await bot.get_file(docs_id)
+
+                    except aiogram.utils.exceptions.FileIsTooBig:
+                        await message.reply("Брат, слишком большой файл ты мне отправил")
+
                     file_path = file_info.file_path
 
                     # Сохранение фотографии локально
@@ -575,10 +586,12 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
             fraction = fraction_without_percent*0.4
 
             old_fraction = await db.get_old_fraction(message.from_user.id)
+            if old_fraction != 0:
+                await db.update_positive_debt(message.from_user.id, old_fraction)
+            else:
+                await db.update_positive_debt(message.from_user.id, fraction)
 
             await db.update_fraction(message.from_user.id, fraction, "Миша")
-
-            await db.update_positive_debt(message.from_user.id, old_fraction)
 
             debt = await db.get_debt(message.from_user.id)
 
@@ -593,13 +606,15 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
         case "Дато":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
-            old_fraction = await db.get_old_fraction(message.from_user.id)
-
             fraction = fraction_without_percent * 0.24
 
-            await db.update_fraction(message.from_user.id, fraction, "Дато")
+            old_fraction = await db.get_old_fraction(message.from_user.id)
+            if old_fraction != 0:
+                await db.update_positive_debt(message.from_user.id, old_fraction)
+            else:
+                await db.update_positive_debt(message.from_user.id, fraction)
 
-            await db.update_positive_debt(message.from_user.id, old_fraction)
+            await db.update_fraction(message.from_user.id, fraction, "Дато")
 
             debt = await db.get_debt(message.from_user.id)
 
@@ -612,13 +627,15 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
         case "Глеб":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
-            old_fraction = await db.get_old_fraction(message.from_user.id)
-
             fraction = fraction_without_percent * 0.36
 
-            await db.update_fraction(message.from_user.id, fraction, "Глеб")
+            old_fraction = await db.get_old_fraction(message.from_user.id)
+            if old_fraction != 0:
+                await db.update_positive_debt(message.from_user.id, old_fraction)
+            else:
+                await db.update_positive_debt(message.from_user.id, fraction)
 
-            await db.update_positive_debt(message.from_user.id, old_fraction)
+            await db.update_fraction(message.from_user.id, fraction, "Глеб")
 
             debt = await db.get_debt(message.from_user.id)
 
