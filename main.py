@@ -24,8 +24,12 @@ storage = MemoryStorage()
 class MenuStates(StatesGroup):
     start = State()
     expense = State()
+    expense_comment = State()
+    expense_approve_enter_file = State()
     expense_enter_file = State()
     income = State()
+    income_comment = State()
+    income_approve_enter_file = State()
     income_enter_file = State()
     fraction_enter = State()
     fraction_pay = State()
@@ -137,7 +141,10 @@ back_n_next_button = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard
     KeyboardButton(text="Далее"), KeyboardButton(text="Назад"))
 
 pay_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
-    KeyboardButton(text="Выплатить"), KeyboardButton(text="Назад"))
+    KeyboardButton(text="Меню"), KeyboardButton(text="Назад"))
+
+yes_or_no_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).row(
+    KeyboardButton(text="Да"), KeyboardButton(text="Нет")).add(KeyboardButton("Назад"))
 
 
 # Обработка команды /start
@@ -194,7 +201,7 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
                 await bot.send_message(message.from_user.id, "На что мы потратили столько денег, брат?"
                                                              " Поясни в двух словах.", reply_markup=back_keyboard)
 
-                await MenuStates.expense_enter_file.set()
+                await MenuStates.expense_comment.set()
 
             except ValueError:
                 await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
@@ -202,6 +209,41 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
 
             except Exception as e:
                 print(f"Ошибка в expense_sum_handle {e}")
+
+
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.expense_comment)
+async def handle_text(message: types.Message, state: FSMContext):
+    match message.text:
+        case "Назад":
+            await bot.send_message(message.from_user.id, "Сколько потратили?", reply_markup=back_keyboard)
+            await MenuStates.expense.set()
+
+        case _:
+            await bot.send_message(message.from_user.id, "Есть чеки или другое подтверждение?",
+                                   reply_markup=yes_or_no_keyboard)
+            await MenuStates.expense_approve_enter_file.set()
+
+
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.expense_approve_enter_file)
+async def handle_approve_photos(message: types.Message, state: FSMContext):
+    match message.text:
+        case "Да":
+            await bot.send_message(message.from_user.id, "Присылай всё, что есть", reply_markup=back_keyboard)
+            await MenuStates.expense_enter_file.set()
+
+        case "Нет":
+            await bot.send_message(message.from_user.id, "Понял-принял", reply_markup=main_menu_keyboard)
+            await MenuStates.start.set()
+
+        case "Назад":
+            await bot.send_message(message.from_user.id, "На что мы потратили столько денег, брат?"
+                                                         " Поясни в двух словах.", reply_markup=back_keyboard)
+
+            await MenuStates.expense_comment.set()
+
+        case _:
+            await bot.send_message(message.from_user.id, "Брат, тут надо пункты выбирать",
+                                   reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.PHOTO, state=MenuStates.expense_enter_file)
@@ -357,7 +399,7 @@ async def income_sum_handle(message: types.Message, state: FSMContext):
                         data["income"] = message.text
                 await bot.send_message(message.from_user.id, "На чем подняли такую котлету?"
                                                              " Поясни пацанам по-братски.", reply_markup=back_keyboard)
-                await MenuStates.income_enter_file.set()
+                await MenuStates.income_comment.set()
 
             except ValueError:
                 await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
@@ -365,6 +407,42 @@ async def income_sum_handle(message: types.Message, state: FSMContext):
 
             except Exception as e:
                 print(f"Ошибка в income_sum_handle {e}")
+
+
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.income_comment)
+async def handle_text(message: types.Message, state: FSMContext):
+    match message.text:
+        case "Назад":
+            await bot.send_message(message.from_user.id, "Слава Всевышнему! Сколько подняли?",
+                                   reply_markup=back_keyboard)
+            await MenuStates.income.set()
+
+        case _:
+            await bot.send_message(message.from_user.id, "Есть заказ-наряд или другое подтверждение?",
+                                   reply_markup=yes_or_no_keyboard)
+            await MenuStates.income_approve_enter_file.set()
+
+
+@dp.message_handler(content_types=types.ContentTypes.TEXT, state=MenuStates.income_approve_enter_file)
+async def handle_approve_photos(message: types.Message, state: FSMContext):
+    match message.text:
+        case "Да":
+            await bot.send_message(message.from_user.id, "Присылай всё, что есть", reply_markup=back_keyboard)
+            await MenuStates.income_enter_file.set()
+
+        case "Нет":
+            await bot.send_message(message.from_user.id, "Понял-принял", reply_markup=main_menu_keyboard)
+            await MenuStates.start.set()
+
+        case "Назад":
+            await bot.send_message(message.from_user.id, "На чем подняли такую котлету? Поясни пацанам по-братски.",
+                                   reply_markup=back_keyboard)
+
+            await MenuStates.income_comment.set()
+
+        case _:
+            await bot.send_message(message.from_user.id, "Брат, тут надо пункты выбирать",
+                                   reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.PHOTO, state=MenuStates.income_enter_file)
@@ -595,11 +673,17 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
 
             debt = await db.get_debt(message.from_user.id)
 
-            await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить"
-                                                         f" {debt} руб.",
-                                   reply_markup=pay_keyboard)
+            if debt == 0:
+                await bot.send_message(message.from_user.id, "На сегодня у Миши нет выплат",
+                                       reply_markup=pay_keyboard)
 
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Миша задолжал {debt} руб. в общак",
+                                       reply_markup=pay_keyboard)
 
+            else:
+                await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить {debt} руб.",
+                                       reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
@@ -618,9 +702,17 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
 
             debt = await db.get_debt(message.from_user.id)
 
-            await bot.send_message(message.from_user.id, f"На сегодня Дато должны выплатить"
-                                                         f" {debt} руб.",
-                                   reply_markup=pay_keyboard)
+            if debt == 0:
+                await bot.send_message(message.from_user.id, "На сегодня у Дато нет выплат",
+                                       reply_markup=pay_keyboard)
+
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Дато задолжал {debt} руб. в общак",
+                                       reply_markup=pay_keyboard)
+
+            else:
+                await bot.send_message(message.from_user.id, f"На сегодня Дато должны выплатить"
+                                                             f" {debt} руб.", reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
@@ -639,9 +731,17 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
 
             debt = await db.get_debt(message.from_user.id)
 
-            await bot.send_message(message.from_user.id, f"На сегодня Глебу должны выплатить"
-                                                         f" {debt} руб.",
-                                   reply_markup=pay_keyboard)
+            if debt == 0:
+                await bot.send_message(message.from_user.id, "На сегодня у Глеба нет выплат",
+                                       reply_markup=pay_keyboard)
+
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Глеб задолжал {debt} руб. в общак",
+                                       reply_markup=pay_keyboard)
+
+            else:
+                await bot.send_message(message.from_user.id, f"На сегодня Глебу должны выплатить"
+                                                             f" {debt} руб.", reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
@@ -658,27 +758,14 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
                                    reply_markup=fraction_choose_who_keyboard)
             await MenuStates.fraction_to_who.set()
 
-        case "Выплатить":
-            await bot.send_message(message.from_user.id, "Отправь мне сумму, которую хочешь выплатить",
-                                   reply_markup=back_keyboard)
+        case "Меню":
+            await bot.send_message(message.from_user.id, "И снова здравствуйте",
+                                   reply_markup=main_menu_keyboard)
+            await MenuStates.start.set()
 
         case _:
-            try:
-                num = message.text.replace(",", ".")
-                float(num)
-
-                await db.update_pay_fraction(message.from_user.id, message.text)
-                await db.update_negative_debt(message.from_user.id, message.text)
-
-                await bot.send_message(message.from_user.id, "Принято", reply_markup=main_menu_keyboard)
-                await MenuStates.start.set()
-
-            except ValueError:
-                await bot.send_message(message.from_user.id, "Напиши цифрами, без букв, знаков и пробелов",
-                                       reply_markup=back_keyboard)
-
-            except Exception as e:
-                print(f"Ошибка в fraction_to_pay_handle {e}")
+            await bot.send_message(message.from_user.id, "Брат, тут надо пункты выбирать",
+                                   reply_markup=pay_keyboard)
 
 
 @dp.message_handler(state=MenuStates.report)
