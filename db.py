@@ -2,17 +2,16 @@ import datetime
 
 import psycopg2
 
-conn = psycopg2.connect(dbname="fraction", user="postgres",
-                        password="AiRa6779", host="localhost")
+conn = psycopg2.connect(dbname='fraction', user='shalor1k', password='bd260703', host='localhost')
 cur = conn.cursor()
 
 
 # Проверяем, есть ли юзер в базе
-async def user_exists(user_id):
+async def user_exists(user_id: int, username: str) -> None:
     try:
         cur.execute("SELECT EXISTS (SELECT * FROM users WHERE tg_id = '{}')".format(str(user_id)))
         if not cur.fetchone()[0]:
-            await add_user(user_id)
+            await add_user(user_id, username)
             await insert_users_finances(user_id)
             await add_user_to_users_debt(user_id)
 
@@ -21,7 +20,7 @@ async def user_exists(user_id):
 
 
 # Добвляем юзера в базу
-async def add_user(user_id) -> None:
+async def add_user(user_id: int, username: str) -> None:
     try:
         cur.execute("SELECT MAX(id) FROM users")
         db_user_id = cur.fetchone()
@@ -30,7 +29,8 @@ async def add_user(user_id) -> None:
         else:
             db_user_id = db_user_id[0] + 1
         cur.execute(
-            "INSERT INTO users (id, tg_id) VALUES ('{}', '{}')".format(db_user_id, str(user_id)))
+            "INSERT INTO users (id, tg_id, username) VALUES ('{}', '{}', '{}')".format(db_user_id, str(user_id),
+                                                                                       username))
         conn.commit()
 
     except Exception as e:
@@ -171,19 +171,155 @@ async def get_old_fraction(user_id: int) -> float:
         print(f"Ошибка в get_old_fraction {e}")
 
 
-async def update_fraction(user_id: int, fraction: float, who: str) -> None:
+async def update_fraction(user_id: int, fraction: float) -> None:
     try:
         cur.execute(
             "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
         db_user_id = cur.fetchone()[0]
 
-        cur.execute("UPDATE users_finances SET fraction = '{}', fraction_to_who = '{}' "
-                    " WHERE user_id = '{}' AND closed IS FALSE".format(fraction, who, db_user_id))
+        cur.execute("UPDATE users_finances SET fraction = '{}'"
+                    " WHERE user_id = '{}' AND closed IS FALSE".format(fraction, db_user_id))
         conn.commit()
 
     except Exception as e:
         conn.rollback()
         print(f"Ошибка в update_fraction {e}")
+
+
+async def update_fraction_with_name(user_id: int, fraction: float, to_who: str) -> None:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        match to_who:
+            case "Миша":
+                cur.execute("UPDATE users_finances SET fraction_misha = '{}' "
+                            "WHERE user_id = '{}'".format(fraction, db_user_id))
+                conn.commit()
+
+            case "Дато":
+                cur.execute("UPDATE users_finances SET fraction_dato = '{}' "
+                            "WHERE user_id = '{}'".format(fraction, db_user_id))
+                conn.commit()
+
+            case "Глеб":
+                cur.execute("UPDATE users_finances SET fraction_gleb = '{}' "
+                            "WHERE user_id = '{}'".format(fraction, db_user_id))
+                conn.commit()
+
+            case _:
+                print(f"Получил неизвестные данные: {to_who} в update_fraction_with_name")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Ошибка в update_fraction_with_name {e}")
+
+
+async def select_fraction_with_name(user_id: int, to_who: str) -> float:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        match to_who:
+            case "Миша":
+                cur.execute("SELECT fraction_misha FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                fraction = cur.fetchone()[0]
+                if fraction is None:
+                    return 0
+                return fraction
+
+            case "Дато":
+                cur.execute("SELECT fraction_dato FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                fraction = cur.fetchone()[0]
+                if fraction is None:
+                    return 0
+                return fraction
+
+            case "Глеб":
+                cur.execute("SELECT fraction_gleb FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                fraction = cur.fetchone()[0]
+                if fraction is None:
+                    return 0
+                return fraction
+
+            case _:
+                print(f"Получил неизвестные данные: {to_who} в select_fraction_with_name")
+
+    except Exception as e:
+        print(f"Ошибка в update_fraction_with_name {e}")
+
+
+async def update_paid_with_name(user_id: int, paid: float, to_who: str) -> None:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        match to_who:
+            case "Миша":
+                cur.execute("UPDATE users_finances SET paid_misha = '{}' "
+                            "WHERE user_id = '{}'".format(paid, db_user_id))
+                conn.commit()
+
+            case "Дато":
+                cur.execute("UPDATE users_finances SET paid_dato = '{}' "
+                            "WHERE user_id = '{}'".format(paid, db_user_id))
+                conn.commit()
+
+            case "Глеб":
+                cur.execute("UPDATE users_finances SET paid_gleb = '{}' "
+                            "WHERE user_id = '{}'".format(paid, db_user_id))
+                conn.commit()
+
+            case _:
+                print(f"Получил неизвестные данные: {to_who} в update_paid_with_name")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Ошибка в update_paid_with_name {e}")
+
+
+async def select_paid_with_name(user_id: int, to_who: str) -> float:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        match to_who:
+            case "Миша":
+                cur.execute("SELECT paid_misha FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                paid = cur.fetchone()[0]
+                if paid is None:
+                    return 0
+                return paid
+
+            case "Дато":
+                cur.execute("SELECT paid_dato FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                paid = cur.fetchone()[0]
+                if paid is None:
+                    return 0
+                return paid
+
+            case "Глеб":
+                cur.execute("SELECT paid_gleb FROM users_finances "
+                            "WHERE user_id = '{}'".format(db_user_id))
+                paid = cur.fetchone()[0]
+                if paid is None:
+                    return 0
+                return paid
+
+            case _:
+                print(f"Получил неизвестные данные: {to_who} в select_paid_with_name")
+
+    except Exception as e:
+        print(f"Ошибка в select_paid_with_name {e}")
 
 
 async def update_negative_debt(user_id: int, debt: float) -> None:

@@ -152,7 +152,7 @@ yes_or_no_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard
 async def command_start(message: types.Message, state: FSMContext):
     await state.finish()
 
-    await db.user_exists(message.from_user.id)
+    await db.user_exists(message.from_user.id, message.from_user.username)
 
     await bot.send_message(message.from_user.id, "Салам, брат! Речь пойдет о трехзначных цифрах 💷💷💷",
                            reply_markup=main_menu_keyboard)
@@ -233,6 +233,15 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
         case "Нет":
             await bot.send_message(message.from_user.id, "Понял-принял", reply_markup=main_menu_keyboard)
+
+            async with state.proxy() as data:
+                expense = data["expense"]
+
+                await db.update_expense(message.from_user.id, expense)
+
+            # Очистка состояния
+            await state.reset_state()
+
             await MenuStates.start.set()
 
         case "Назад":
@@ -432,6 +441,13 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
         case "Нет":
             await bot.send_message(message.from_user.id, "Понял-принял", reply_markup=main_menu_keyboard)
+            async with state.proxy() as data:
+                expense = data["income"]
+
+                await db.update_income(message.from_user.id, expense)
+
+            # Очистка состояния
+            await state.reset_state()
             await MenuStates.start.set()
 
         case "Назад":
@@ -613,6 +629,9 @@ async def fraction_handle(message: types.Message, state: FSMContext):
             await MenuStates.fraction_enter.set()
 
         case "Миша" | "Дато" | "Глеб":
+            async with state.proxy() as data:
+                if "to_who" not in data:
+                    data["to_who"] = message.text
             await bot.send_message(message.from_user.id, "Сколько выплатили?", reply_markup=back_keyboard)
             await MenuStates.fraction_pay.set()
 
@@ -632,9 +651,11 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
             await MenuStates.fraction_choose_who.set()
         case _:
             try:
-                num = message.text.replace(",", ".")
-                float(num)
+                num = float(message.text.replace(",", "."))
 
+                async with state.proxy() as data:
+                    to_who = data["to_who"]
+                    await db.update_paid_with_name(message.from_user.id, num, to_who)
                 await db.update_pay_fraction(message.from_user.id, message.text)
                 await db.update_negative_debt(message.from_user.id, message.text)
 
@@ -661,28 +682,29 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
         case "Миша":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
-            fraction = fraction_without_percent*0.4
-
             old_fraction = await db.get_old_fraction(message.from_user.id)
             if old_fraction != 0:
                 await db.update_positive_debt(message.from_user.id, old_fraction)
             else:
-                await db.update_positive_debt(message.from_user.id, fraction)
+                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
 
-            await db.update_fraction(message.from_user.id, fraction, "Миша")
+            await db.update_fraction(message.from_user.id, fraction_without_percent)
+            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.4, "Миша")
+            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Миша") - \
+                       await db.select_paid_with_name(message.from_user.id, "Миша")
 
             debt = await db.get_debt(message.from_user.id)
 
-            if debt == 0:
+            if cur_debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Миши нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Миша задолжал {debt} руб. в общак",
+            elif cur_debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Миша задолжал {cur_debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
-                await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить {debt} руб.",
+                await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить {cur_debt} руб.",
                                        reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
@@ -690,58 +712,62 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
         case "Дато":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
-            fraction = fraction_without_percent * 0.24
-
             old_fraction = await db.get_old_fraction(message.from_user.id)
             if old_fraction != 0:
                 await db.update_positive_debt(message.from_user.id, old_fraction)
             else:
-                await db.update_positive_debt(message.from_user.id, fraction)
+                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
 
-            await db.update_fraction(message.from_user.id, fraction, "Дато")
+            await db.update_fraction(message.from_user.id, fraction_without_percent)
+            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.24, "Дато")
+
+            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Дато") - \
+                       await db.select_paid_with_name(message.from_user.id, "Дато")
 
             debt = await db.get_debt(message.from_user.id)
 
-            if debt == 0:
+            if cur_debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Дато нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Дато задолжал {debt} руб. в общак",
+            elif cur_debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Дато задолжал {cur_debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
                 await bot.send_message(message.from_user.id, f"На сегодня Дато должны выплатить"
-                                                             f" {debt} руб.", reply_markup=pay_keyboard)
+                                                             f" {cur_debt} руб.", reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
         case "Глеб":
             fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
 
-            fraction = fraction_without_percent * 0.36
-
             old_fraction = await db.get_old_fraction(message.from_user.id)
             if old_fraction != 0:
                 await db.update_positive_debt(message.from_user.id, old_fraction)
             else:
-                await db.update_positive_debt(message.from_user.id, fraction)
+                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
 
-            await db.update_fraction(message.from_user.id, fraction, "Глеб")
+            await db.update_fraction(message.from_user.id, fraction_without_percent)
+            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.36, "Глеб")
+
+            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Глеб") - \
+                       await db.select_paid_with_name(message.from_user.id, "Глеб")
 
             debt = await db.get_debt(message.from_user.id)
 
-            if debt == 0:
+            if cur_debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Глеба нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Глеб задолжал {debt} руб. в общак",
+            elif cur_debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Глеб задолжал {cur_debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
                 await bot.send_message(message.from_user.id, f"На сегодня Глебу должны выплатить"
-                                                             f" {debt} руб.", reply_markup=pay_keyboard)
+                                                             f" {cur_debt} руб.", reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
