@@ -196,8 +196,8 @@ async def expense_sum_handle(message: types.Message, state: FSMContext):
             try:
                 int(message.text)
                 async with state.proxy() as data:
-                    if "income" not in data:
-                        data["expense"] = message.text
+                    data["expense"] = message.text
+
                 await bot.send_message(message.from_user.id, "На что мы потратили столько денег, брат?"
                                                              " Поясни в двух словах.", reply_markup=back_keyboard)
 
@@ -219,6 +219,9 @@ async def handle_text(message: types.Message, state: FSMContext):
             await MenuStates.expense.set()
 
         case _:
+            async with state.proxy() as data:
+                if "comment" not in data:
+                    data["comment"] = message.text
             await bot.send_message(message.from_user.id, "Есть чеки или другое подтверждение?",
                                    reply_markup=yes_or_no_keyboard)
             await MenuStates.expense_approve_enter_file.set()
@@ -236,8 +239,9 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
             async with state.proxy() as data:
                 expense = data["expense"]
+                comment = data["comment"]
 
-                await db.update_expense(message.from_user.id, expense)
+            await db.insert_users_finances(message.from_user.id, "Расход", expense, comment)
 
             # Очистка состояния
             await state.reset_state()
@@ -266,7 +270,7 @@ async def handle_photos(message: types.Message, state: FSMContext):
         data["photos"].append(message.photo[-1].file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.DOCUMENT, state=MenuStates.expense_enter_file)
@@ -280,7 +284,7 @@ async def handle_docs(message: types.Message, state: FSMContext):
         data["documents"].append(message.document.file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Документ добавлен", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.VIDEO, state=MenuStates.expense_enter_file)
@@ -294,7 +298,7 @@ async def handle_docs(message: types.Message, state: FSMContext):
         data["video"].append(message.photo[-1].file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Видео добавлено", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 # Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
@@ -305,7 +309,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                reply_markup=back_keyboard)
         await MenuStates.expense.set()
 
-    elif "Далее" in message.text:
+    elif "Да" in message.text:
         # Получение списка сохраненных фотографий из состояния
         async with state.proxy() as data:
             try:
@@ -317,14 +321,22 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 # Обработка сохраненных фотографий
                 for photo_id in photos:
-                    file_info = await bot.get_file(photo_id)
+                    try:
+                        file_info = await bot.get_file(photo_id)
+
+                    except aiogram.utils.exceptions.FileIsTooBig:
+                        await message.reply("Брат, ты мне слишком большую фотографию отправил")
+
                     file_path = file_info.file_path
 
                     # Сохранение фотографии локально
                     await bot.download_file(file_path, f'photos/{photo_id}.jpg')
                     photos_for_save.append(f'photos/{photo_id}.jpg')
 
-                await db.update_attachments_expense(message.from_user.id, photos_for_save)
+                expense = data["expense"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, photos_for_save)
 
             except KeyError:
                 pass
@@ -350,7 +362,10 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                     await bot.download_file(file_path, f'documents/{docs_id}.pdf')
                     documents_for_save.append(f'documents/{docs_id}.pdf')
 
-                await db.update_attachments_expense(message.from_user.id, documents_for_save)
+                expense = data["expense"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, documents_for_save)
 
             except KeyError:
                 pass
@@ -364,29 +379,35 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 # Обработка сохраненных видео
                 for video_id in video:
-                    file_info = await bot.get_file(video_id)
+                    try:
+                        file_info = await bot.get_file(video_id)
+
+                    except aiogram.utils.exceptions.FileIsTooBig:
+                        await message.reply("Брат, слишком большой видос ты мне отправил")
+
                     file_path = file_info.file_path
 
                     # Сохранение фотографии локально
                     await bot.download_file(file_path, f'video/{video_id}.mp4')
                     video_for_save.append(f'video/{video_id}.mp4')
 
-                await db.update_attachments_expense(message.from_user.id, video_for_save)
+                expense = data["expense"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, video_for_save)
 
             except KeyError:
                 pass
-
-        async with state.proxy() as data:
-            expense = data["expense"]
-
-            await db.update_expense(message.from_user.id, expense)
 
         # Очистка состояния
         await state.reset_state()
 
         # Ответное сообщение об успешной обработке
-        await message.reply("Зафиксировано", reply_markup=main_menu_keyboard)
+        await message.reply("Понял-принял", reply_markup=main_menu_keyboard)
         await MenuStates.start.set()
+
+    elif "Нет" in message.text:
+        await bot.send_message(message.from_user.id, "Присылай всё, что есть", reply_markup=back_keyboard)
 
     else:
         await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
@@ -404,8 +425,7 @@ async def income_sum_handle(message: types.Message, state: FSMContext):
             try:
                 int(message.text)
                 async with state.proxy() as data:
-                    if "income" not in data:
-                        data["income"] = message.text
+                    data["income"] = message.text
                 await bot.send_message(message.from_user.id, "На чем подняли такую котлету?"
                                                              " Поясни пацанам по-братски.", reply_markup=back_keyboard)
                 await MenuStates.income_comment.set()
@@ -427,6 +447,9 @@ async def handle_text(message: types.Message, state: FSMContext):
             await MenuStates.income.set()
 
         case _:
+            async with state.proxy() as data:
+                if "comment" not in data:
+                    data["comment"] = message.text
             await bot.send_message(message.from_user.id, "Есть заказ-наряд или другое подтверждение?",
                                    reply_markup=yes_or_no_keyboard)
             await MenuStates.income_approve_enter_file.set()
@@ -442,9 +465,10 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
         case "Нет":
             await bot.send_message(message.from_user.id, "Понял-принял", reply_markup=main_menu_keyboard)
             async with state.proxy() as data:
-                expense = data["income"]
+                income = data["income"]
+                comment = data["comment"]
 
-                await db.update_income(message.from_user.id, expense)
+            await db.insert_users_finances(message.from_user.id, "Доход", income, comment)
 
             # Очистка состояния
             await state.reset_state()
@@ -472,7 +496,7 @@ async def handle_photos(message: types.Message, state: FSMContext):
         data["photos"].append(message.photo[-1].file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Фотография добавлена", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.DOCUMENT, state=MenuStates.income_enter_file)
@@ -486,7 +510,7 @@ async def handle_docs(message: types.Message, state: FSMContext):
         data["documents"].append(message.document.file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Документ добавлен", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 @dp.message_handler(content_types=types.ContentTypes.VIDEO, state=MenuStates.income_enter_file)
@@ -500,7 +524,7 @@ async def handle_docs(message: types.Message, state: FSMContext):
         data["video"].append(message.photo[-1].file_id)
 
     # Ответное сообщение о сохранении фотографии
-    await message.reply("Видео добавлено", reply_markup=back_n_next_button)
+    await message.reply("Это всё?", reply_markup=yes_or_no_keyboard)
 
 
 # Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
@@ -511,7 +535,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                reply_markup=back_keyboard)
         await MenuStates.income.set()
 
-    elif "Далее" in message.text:
+    elif "Да" in message.text:
         # Получение списка сохраненных фотографий из состояния
         async with state.proxy() as data:
             try:
@@ -530,7 +554,10 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                     await bot.download_file(file_path, f'photos/{photo_id}.jpg')
                     photos_for_save.append(f'photos/{photo_id}.jpg')
 
-                await db.update_attachments_income(message.from_user.id, photos_for_save)
+                income = data["income"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Доход", income, comment, photos_for_save)
 
             except KeyError:
                 pass
@@ -556,7 +583,10 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                     await bot.download_file(file_path, f'documents/{docs_id}.pdf')
                     documents_for_save.append(f'documents/{docs_id}.pdf')
 
-                await db.update_attachments_income(message.from_user.id, documents_for_save)
+                income = data["income"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Доход", income, comment, documents_for_save)
 
             except KeyError:
                 pass
@@ -577,22 +607,23 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                     await bot.download_file(file_path, f'video/{video_id}.mp4')
                     video_for_save.append(f'video/{video_id}.mp4')
 
-                await db.update_attachments_income(message.from_user.id, video_for_save)
+                income = data["income"]
+                comment = data["comment"]
+
+                await db.insert_users_finances(message.from_user.id, "Доход", income, comment, video_for_save)
 
             except KeyError:
                 pass
-
-        async with state.proxy() as data:
-            expense = data["income"]
-
-            await db.update_income(message.from_user.id, expense)
 
         # Очистка состояния
         await state.reset_state()
 
         # Ответное сообщение об успешной обработке
-        await message.reply("Зафиксировано", reply_markup=main_menu_keyboard)
+        await message.reply("Понял-принял", reply_markup=main_menu_keyboard)
         await MenuStates.start.set()
+
+    elif "Нет" in message.text:
+        await bot.send_message(message.from_user.id, "Присылай всё, что есть", reply_markup=back_keyboard)
 
     else:
         await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
@@ -654,13 +685,15 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
                 num = float(message.text.replace(",", "."))
 
                 async with state.proxy() as data:
+                    data["amount"] = message.text
                     to_who = data["to_who"]
-                    await db.update_paid_with_name(message.from_user.id, num, to_who)
-                await db.update_pay_fraction(message.from_user.id, message.text)
-                await db.update_negative_debt(message.from_user.id, message.text)
+                    amount = data["amount"]
+
+                await db.insert_users_finances(message.from_user.id, "Выплата", amount, to_who)
 
                 await bot.send_message(message.from_user.id, "Принято",
                                        reply_markup=main_menu_keyboard)
+
                 await MenuStates.start.set()
 
             except ValueError:
@@ -680,94 +713,61 @@ async def fraction_to_who_handle(message: types.Message, state: FSMContext):
             await MenuStates.fraction_enter.set()
 
         case "Миша":
-            fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Миша")
+            debt = cur_debt * 0.4 - cur_payment
 
-            old_fraction = await db.get_old_fraction(message.from_user.id)
-            if old_fraction != 0:
-                await db.update_positive_debt(message.from_user.id, old_fraction)
-            else:
-                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
-
-            await db.update_fraction(message.from_user.id, fraction_without_percent)
-            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.4, "Миша")
-            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Миша") - \
-                       await db.select_paid_with_name(message.from_user.id, "Миша")
-
-            debt = await db.get_debt(message.from_user.id)
-
-            if cur_debt == 0:
+            if debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Миши нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif cur_debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Миша задолжал {cur_debt} руб. в общак",
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Миша задолжал "
+                                                             f"{debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
-                await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить {cur_debt} руб.",
+                await bot.send_message(message.from_user.id, f"На сегодня Мише должны выплатить"
+                                                             f" {debt} руб.",
                                        reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
         case "Дато":
-            fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
-
-            old_fraction = await db.get_old_fraction(message.from_user.id)
-            if old_fraction != 0:
-                await db.update_positive_debt(message.from_user.id, old_fraction)
-            else:
-                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
-
-            await db.update_fraction(message.from_user.id, fraction_without_percent)
-            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.24, "Дато")
-
-            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Дато") - \
-                       await db.select_paid_with_name(message.from_user.id, "Дато")
-
-            debt = await db.get_debt(message.from_user.id)
-
-            if cur_debt == 0:
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Дато")
+            debt = cur_debt*0.24 - cur_payment
+            if debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Дато нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif cur_debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Дато задолжал {cur_debt} руб. в общак",
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Дато задолжал "
+                                                             f"{debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
                 await bot.send_message(message.from_user.id, f"На сегодня Дато должны выплатить"
-                                                             f" {cur_debt} руб.", reply_markup=pay_keyboard)
+                                                             f" {debt} руб.",
+                                       reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
         case "Глеб":
-            fraction_without_percent = await db.get_fraction_without_percent(message.from_user.id)
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Глеб")
+            debt = cur_debt * 0.36 - cur_payment
 
-            old_fraction = await db.get_old_fraction(message.from_user.id)
-            if old_fraction != 0:
-                await db.update_positive_debt(message.from_user.id, old_fraction)
-            else:
-                await db.update_positive_debt(message.from_user.id, fraction_without_percent)
-
-            await db.update_fraction(message.from_user.id, fraction_without_percent)
-            await db.update_fraction_with_name(message.from_user.id, fraction_without_percent * 0.36, "Глеб")
-
-            cur_debt = await db.select_fraction_with_name(message.from_user.id, "Глеб") - \
-                       await db.select_paid_with_name(message.from_user.id, "Глеб")
-
-            debt = await db.get_debt(message.from_user.id)
-
-            if cur_debt == 0:
+            if debt == 0:
                 await bot.send_message(message.from_user.id, "На сегодня у Глеба нет выплат",
                                        reply_markup=pay_keyboard)
 
-            elif cur_debt < 0:
-                await bot.send_message(message.from_user.id, f"На сегодня Глеб задолжал {cur_debt} руб. в общак",
+            elif debt < 0:
+                await bot.send_message(message.from_user.id, f"На сегодня Глеб задолжал "
+                                                             f"{debt} руб. в общак",
                                        reply_markup=pay_keyboard)
 
             else:
                 await bot.send_message(message.from_user.id, f"На сегодня Глебу должны выплатить"
-                                                             f" {cur_debt} руб.", reply_markup=pay_keyboard)
+                                                             f" {debt} руб.",
+                                       reply_markup=pay_keyboard)
 
             await MenuStates.fraction_to_pay.set()
 
@@ -802,8 +802,10 @@ async def report_handle(message: types.Message, state: FSMContext):
             await MenuStates.start.set()
 
         case "Текущий месяц":
+            await db.report_cur_month()
             await bot.send_message(message.from_user.id, "Отправляю данные")
             await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
+            await MenuStates.start.set()
 
         case "Период":
             calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
@@ -833,6 +835,9 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
         selected_date = callback_query.data.split('-')[2]
         string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
         date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
+        async with state.proxy() as data:
+            if "start" not in data:
+                data["start"] = date_object_for_bd
         calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
         await bot.send_message(callback_query.from_user.id, "Выбери дату окончания отчётного периода",
                                reply_markup=back_keyboard)
@@ -865,7 +870,11 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
         selected_date = callback_query.data.split('-')[2]
         string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
         date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
+        async with state.proxy() as data:
+            if "end" not in data:
+                data["end"] = date_object_for_bd
         await bot.send_message(callback_query.from_user.id, "Генерирую отчёт")
+        await state.reset_state()
         await bot.send_message(callback_query.from_user.id, "Меню", reply_markup=main_menu_keyboard)
         await MenuStates.start.set()
 
