@@ -141,13 +141,223 @@ async def select_fraction(user_id: int, to_who: str) -> tuple:
         print(f"Ошибка в select_fraction {e}")
 
 
-async def report_cur_month():
+async def report_cur_month() -> list:
     try:
         cur.execute(f"SELECT * FROM users_finances WHERE DATE_PART('month', date) = {datetime.datetime.now().month}")
-        cur.execute(f"SELECT * FROM users_finances WHERE EXTRACT(MONTH FROM date) > 10;")
-        res = cur.fetchall()
+        cur_month_res = cur.fetchall()
 
-        print(res)
+        return cur_month_res
 
     except Exception as e:
         print(f"Ошибка в report_cur_month {e}")
+
+
+async def report_period(start_date: str, end_date: str) -> list:
+    try:
+        cur.execute(f"SELECT * FROM users_finances WHERE date >= '{start_date}' AND date <= '{end_date}'")
+        period_res = cur.fetchall()
+
+        return period_res
+
+    except Exception as e:
+        print(f"Ошибка в report_period {e}")
+
+
+async def get_user_by_id(db_id: int) -> tuple:
+    try:
+        cur.execute(f"SELECT * FROM users WHERE id = '{db_id}'")
+        about_user = cur.fetchone()
+
+        return about_user
+
+    except Exception as e:
+        print(f"Ошибка в get_user_by_id {e}")
+
+
+async def get_id_by_username(username: str) -> str:
+    try:
+        cur.execute(f"SELECT tg_id FROM users WHERE username = '{username}'")
+        tg_id = cur.fetchone()
+
+        return tg_id[0]
+
+    except Exception as e:
+        print(f"Ошибка в get_id_by_username {e}")
+
+
+async def get_sum_by_user(user_id: int) -> list:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id} AND type = 'Доход'")
+        incomes = cur.fetchone()[0]
+        if incomes is None:
+            incomes = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id} AND type = 'Расход'")
+        expenses = cur.fetchone()[0]
+        if expenses is None:
+            expenses = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Миша'")
+        pays_misha = cur.fetchone()[0]
+        if pays_misha is None:
+            pays_misha = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Дато'")
+        pays_dato = cur.fetchone()[0]
+        if pays_dato is None:
+            pays_dato = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Глеб'")
+        pays_gleb = cur.fetchone()[0]
+
+        if pays_gleb is None:
+            pays_gleb = 0
+
+        return [incomes, expenses, float(incomes - expenses)*0.4 - float(pays_misha),
+                float(incomes - expenses) * 0.24 - float(pays_dato), float(incomes - expenses)*0.36 - float(pays_dato),
+                pays_misha, pays_dato, pays_gleb]
+
+    except Exception as e:
+        print(f"Ошибка в get_sum_by_user {e}")
+
+
+async def get_sum_by_user_with_period(user_id: int, start_date: str, end_date: str) -> list:
+    try:
+        cur.execute(
+            "SELECT a.id FROM users as a WHERE a.tg_id = '{}'".format(str(user_id)))
+        db_user_id = cur.fetchone()[0]
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id} AND type = 'Доход' AND"
+                    f" date >= '{start_date}' AND date <= '{end_date}'")
+        incomes = cur.fetchone()[0]
+        if incomes is None:
+            incomes = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id} AND type = 'Расход' AND"
+                    f" date >= '{start_date}' AND date <= '{end_date}'")
+        expenses = cur.fetchone()[0]
+        if expenses is None:
+            expenses = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Миша' AND date >= '{start_date}' AND date <= '{end_date}'")
+        pays_misha = cur.fetchone()[0]
+        if pays_misha is None:
+            pays_misha = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Дато' AND date >= '{start_date}' AND date <= '{end_date}'")
+        pays_dato = cur.fetchone()[0]
+        if pays_dato is None:
+            pays_dato = 0
+
+        cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE user_id = {db_user_id}"
+                    f" AND type = 'Выплата' AND comment = 'Глеб' AND date >= '{start_date}' AND date <= '{end_date}'")
+        pays_gleb = cur.fetchone()[0]
+
+        if pays_gleb is None:
+            pays_gleb = 0
+
+        return [incomes, expenses, float(incomes - expenses)*0.4 - float(pays_misha),
+                float(incomes - expenses) * 0.24 - float(pays_dato), float(incomes - expenses)*0.36 - float(pays_dato),
+                pays_misha, pays_dato, pays_gleb]
+
+    except Exception as e:
+        print(f"Ошибка в get_sum_by_user {e}")
+
+
+async def get_all_info_without_user() -> list:
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход' AND DATE_PART('month', date) = "
+                f"{datetime.datetime.now().month}")
+    cur_month_incomes = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход'")
+    all_incomes = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход' AND DATE_PART('month', date) = "
+                f"{datetime.datetime.now().month}")
+    cur_month_expenses = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход'")
+    all_expenses = cur.fetchone()[0]
+
+    profit = cur_month_incomes - cur_month_expenses
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND DATE_PART('month', date) = "
+                f"{datetime.datetime.now().month}")
+    cur_month_pays = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата'")
+    all_pays = cur.fetchone()[0]
+
+    in_cashier = all_incomes - all_expenses - all_pays
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Миша'")
+    to_pay_misha = cur.fetchone()[0]
+    if to_pay_misha is None:
+        to_pay_misha = 0
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Дато'")
+    to_pay_dato = cur.fetchone()[0]
+    if to_pay_dato is None:
+        to_pay_dato = 0
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Глеб'")
+    to_pay_gleb = cur.fetchone()[0]
+    if to_pay_gleb is None:
+        to_pay_gleb = 0
+
+    return [cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier,
+            float(all_incomes-all_expenses)*0.4-float(to_pay_misha),
+            float(all_incomes-all_expenses)*0.24-float(to_pay_dato),
+            float(all_incomes-all_expenses)*0.36-float(to_pay_gleb)]
+
+
+async def get_all_info_without_user_with_period(start_date: str, end_date: str) -> list:
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход' AND "
+                f"date >= '{start_date}' AND date <= '{end_date}'")
+    cur_period_incomes = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход'")
+    all_incomes = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход' AND "
+                f"date >= '{start_date}' AND date <= '{end_date}'")
+    cur_period_expenses = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход'")
+    all_expenses = cur.fetchone()[0]
+
+    profit = cur_period_incomes - cur_period_expenses
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND "
+                f"date >= '{start_date}' AND date <= '{end_date}'")
+    cur_period_pays = cur.fetchone()[0]
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата'")
+    all_pays = cur.fetchone()[0]
+
+    in_cashier = all_incomes - all_expenses - all_pays
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Миша'")
+    to_pay_misha = cur.fetchone()[0]
+    if to_pay_misha is None:
+        to_pay_misha = 0
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Дато'")
+    to_pay_dato = cur.fetchone()[0]
+    if to_pay_dato is None:
+        to_pay_dato = 0
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND comment = 'Миша'")
+    to_pay_gleb = cur.fetchone()[0]
+    if to_pay_gleb is None:
+        to_pay_gleb = 0
+
+    return [cur_period_incomes, cur_period_expenses, profit, cur_period_pays, in_cashier,
+            float(all_incomes-all_expenses)*0.4-float(to_pay_misha),
+            float(all_incomes-all_expenses)*0.24-float(to_pay_dato),
+            float(all_incomes-all_expenses)*0.3-float(to_pay_gleb)]

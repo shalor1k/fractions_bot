@@ -1,3 +1,4 @@
+import csv
 import os
 import logging
 
@@ -243,6 +244,18 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
             await db.insert_users_finances(message.from_user.id, "Расход", expense, comment)
 
+            with open(f"{message.from_user.username}_расход.csv", mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                writer.writerow([message.from_user.username, "Расход", f'{expense} руб.', comment])
+
+            await bot.send_message(message.from_user.id, f"#расход\n"
+                                                         f"@{message.from_user.username} {expense} руб. {comment}")
+
+            # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
+            #                         caption="#расход")
+
             # Очистка состояния
             await state.reset_state()
 
@@ -338,6 +351,27 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, photos_for_save)
 
+                with open(f"{message.from_user.username}_расход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Расход", f'{expense} руб.', comment])
+
+                media = types.MediaGroup()
+
+                for path in photos_for_save:
+                    if photos_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaPhoto(open(path, 'rb'),
+                                                                 caption=f"#расход\n"
+                                                                         f"@{message.from_user.username} {expense} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaPhoto(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
+                #                         caption="#расход")
+
             except KeyError:
                 pass
 
@@ -366,6 +400,27 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                 comment = data["comment"]
 
                 await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, documents_for_save)
+
+                with open(f"{message.from_user.username}_расход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Расход", f'{expense} руб.', comment])
+
+                media = types.MediaGroup()
+
+                for path in documents_for_save:
+                    if documents_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaDocument(open(path, 'rb'),
+                                                                 caption=f"#расход\n"
+                                                                         f"@{message.from_user.username} {expense} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaDocument(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
+                #                         caption="#расход")
 
             except KeyError:
                 pass
@@ -396,6 +451,27 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 await db.insert_users_finances(message.from_user.id, "Расход", expense, comment, video_for_save)
 
+                with open(f"{message.from_user.username}_расход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Расход", f'{expense} руб.', comment])
+
+                media = types.MediaGroup()
+
+                for path in video_for_save:
+                    if video_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaVideo(open(path, 'rb'),
+                                                                 caption=f"#расход\n"
+                                                                         f"@{message.from_user.username} {expense} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaVideo(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
+                #                         caption="#расход")
+
             except KeyError:
                 pass
 
@@ -412,6 +488,13 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
     else:
         await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
                                reply_markup=back_keyboard)
+
+
+# Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
+@dp.message_handler(content_types=types.ContentTypes.ANY, state=MenuStates.expense_enter_file)
+async def choose_will_be_photo(message: types.Message, state: FSMContext):
+    await bot.send_message(message.from_user.id, "Брат, я тебя не понимаю, отправь фото, видео или документ",
+                           reply_markup=back_keyboard)
 
 
 @dp.message_handler(state=MenuStates.income)
@@ -448,8 +531,7 @@ async def handle_text(message: types.Message, state: FSMContext):
 
         case _:
             async with state.proxy() as data:
-                if "comment" not in data:
-                    data["comment"] = message.text
+                data["comment"] = message.text
             await bot.send_message(message.from_user.id, "Есть заказ-наряд или другое подтверждение?",
                                    reply_markup=yes_or_no_keyboard)
             await MenuStates.income_approve_enter_file.set()
@@ -469,6 +551,17 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
                 comment = data["comment"]
 
             await db.insert_users_finances(message.from_user.id, "Доход", income, comment)
+
+            with open(f"{message.from_user.username}_доход.csv", mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                writer.writerow([message.from_user.username, "Доход", f'{income} руб.', comment])
+
+            # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
+            #                         caption="#доход")
+            await bot.send_message(message.from_user.id, f"#доход\n"
+                                                         f"@{message.from_user.username} {income} руб. {comment}")
 
             # Очистка состояния
             await state.reset_state()
@@ -558,6 +651,25 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                 comment = data["comment"]
 
                 await db.insert_users_finances(message.from_user.id, "Доход", income, comment, photos_for_save)
+                with open(f"{message.from_user.username}_доход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Доход", f'{income} руб.', comment])
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
+                #                         caption="#доход")
+                media = types.MediaGroup()
+
+                for path in photos_for_save:
+                    if photos_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaPhoto(open(path, 'rb'),
+                                                                 caption=f"#доход\n"
+                                                                         f"@{message.from_user.username} {income} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaPhoto(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
 
             except KeyError:
                 pass
@@ -588,6 +700,26 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 await db.insert_users_finances(message.from_user.id, "Доход", income, comment, documents_for_save)
 
+                with open(f"{message.from_user.username}_доход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Доход", f'{income} руб.', comment])
+
+                media = types.MediaGroup()
+
+                for path in photos_for_save:
+                    if photos_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaDocument(open(path, 'rb'),
+                                                                 caption=f"#доход\n"
+                                                                         f"@{message.from_user.username} {income} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaDocument(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
+                #                         caption="#доход")
+
             except KeyError:
                 pass
 
@@ -612,6 +744,27 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 await db.insert_users_finances(message.from_user.id, "Доход", income, comment, video_for_save)
 
+                with open(f"{message.from_user.username}_доход.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий'])
+
+                    writer.writerow([message.from_user.username, "Доход", f'{income} руб.', comment])
+
+                media = types.MediaGroup()
+
+                for path in photos_for_save:
+                    if photos_for_save.index(path) == 0:
+                        media.attach_photo(types.InputMediaVideo(open(path, 'rb'),
+                                                                 caption=f"#доход\n"
+                                                                         f"@{message.from_user.username} {income} руб."
+                                                                         f" {comment}"))
+                    else:
+                        media.attach_photo(types.InputMediaVideo(open(path, 'rb')))
+                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
+                #                         caption="#доход")
+
             except KeyError:
                 pass
 
@@ -628,6 +781,13 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
     else:
         await bot.send_message(message.from_user.id, "Брат, отправь мне видео, фото, документ или нажми на кнопку",
                                reply_markup=back_keyboard)
+
+
+# Функция обрабатывающая кнопку назад, если пользователь выбрал отправить фотографию
+@dp.message_handler(content_types=types.ContentTypes.ANY, state=MenuStates.income_enter_file)
+async def choose_will_be_photo(message: types.Message, state: FSMContext):
+    await bot.send_message(message.from_user.id, "Брат, я тебя не понимаю, отправь фото, видео или документ",
+                           reply_markup=back_keyboard)
 
 
 @dp.message_handler(state=MenuStates.fraction_enter)
@@ -661,8 +821,7 @@ async def fraction_handle(message: types.Message, state: FSMContext):
 
         case "Миша" | "Дато" | "Глеб":
             async with state.proxy() as data:
-                if "to_who" not in data:
-                    data["to_who"] = message.text
+                data["to_who"] = message.text
             await bot.send_message(message.from_user.id, "Сколько выплатили?", reply_markup=back_keyboard)
             await MenuStates.fraction_pay.set()
 
@@ -693,6 +852,17 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
 
                 await bot.send_message(message.from_user.id, "Принято",
                                        reply_markup=main_menu_keyboard)
+
+                with open(f"{message.from_user.username}_выплата.csv", mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['Имя', 'Тип', 'Сумма', 'Кому'])
+
+                    writer.writerow([message.from_user.username, "Выплата доли", f'{amount} руб.', to_who])
+
+                # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_выплата.csv", "rb"),
+                #                         caption="#доля")
+                await bot.send_message(message.from_user.id, f"#доля\n"
+                                                             f"@{message.from_user.username} {amount} руб. {to_who}")
 
                 await MenuStates.start.set()
 
@@ -802,9 +972,58 @@ async def report_handle(message: types.Message, state: FSMContext):
             await MenuStates.start.set()
 
         case "Текущий месяц":
-            await db.report_cur_month()
-            await bot.send_message(message.from_user.id, "Отправляю данные")
+            report = await db.report_cur_month()
+
+            await bot.send_message(message.from_user.id, "Генерирую отчёт")
+
+            with open(f"{message.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
+                global_users_id = []
+
+                writer = csv.writer(file)
+                writer.writerow(["Все данные за текущий месяц", '', '', '', '', '', '', '',
+                                 'Суммарно каждый пользователь'])
+                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий', 'Дата', '', '', '', 'Имя', 'Доходы', 'Расходы',
+                                 'К выплате Мише', 'К выплате Дато', 'К выплате Глебу', 'Выплачено Мише',
+                                 'Выплачено Дато', 'Выплачено Глебу'])
+
+                for i in report:
+                    username = await db.get_user_by_id(i[1])
+
+                    if username[2] not in global_users_id:
+                        tg_id = await db.get_id_by_username(username[2])
+                        incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha, pays_dato, \
+                            pays_gleb = await db.get_sum_by_user(tg_id)
+                        type_request = i[2]
+                        if type_request == "Выплата":
+                            type_request = "Выплата доли"
+                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6], '', '', '', username[2],
+                                         incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha,
+                                         pays_dato, pays_gleb])
+                        global_users_id.append(username[2])
+                    else:
+                        type_request = i[2]
+                        if type_request == "Выплата":
+                            type_request = "Выплата доли"
+                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6]])
+
+            cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato,\
+                to_pay_gleb = await db.get_all_info_without_user()
+
+            await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_отчёт.csv", "rb"),
+                                    caption=f"Наши показатели за текущий месяц:\n"
+                                            f"Доходы: {cur_month_incomes} руб.\n"
+                                            f"Расходы: {cur_month_expenses} руб.\n"
+                                            f"Прибыль: {profit} руб.\n"
+                                            f"Выплаченные доли: {cur_month_pays} руб.\n"
+                                            f"В кассе: {in_cashier} руб.\n\n"
+                                            f"Доли к выплате:\n"
+                                            f"Дато: {str(to_pay_dato)[:str(to_pay_dato).index('.') + 3]} руб.\n"
+                                            f"Миша: {str(to_pay_misha)[:str(to_pay_misha).index('.') + 3]} руб.\n"
+                                            f"Глеб: {str(to_pay_gleb)[:str(to_pay_gleb).index('.') + 3]} руб.",
+                                    reply_markup=main_menu_keyboard)
+
             await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
+
             await MenuStates.start.set()
 
         case "Период":
@@ -836,8 +1055,7 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
         string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
         date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
         async with state.proxy() as data:
-            if "start" not in data:
-                data["start"] = date_object_for_bd
+            data["start"] = date_object_for_bd
         calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
         await bot.send_message(callback_query.from_user.id, "Выбери дату окончания отчётного периода",
                                reply_markup=back_keyboard)
@@ -871,11 +1089,69 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
         string = f"{selected_date}.{callback_query.data.split('-')[3]}.{callback_query.data.split('-')[4]}"
         date_object_for_bd = datetime.datetime.strptime(string, "%d.%m.%Y")
         async with state.proxy() as data:
-            if "end" not in data:
-                data["end"] = date_object_for_bd
+            data["end"] = date_object_for_bd
+            start = data["start"]
+        report = await db.report_period(start, date_object_for_bd)
+
         await bot.send_message(callback_query.from_user.id, "Генерирую отчёт")
+
+        try:
+            with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8')\
+                    as file:
+                global_users_id = []
+
+                writer = csv.writer(file)
+                writer.writerow(["Все данные за текущий месяц", '', '', '', '', '', '', '',
+                                 'Суммарно каждый пользователь'])
+                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий', 'Дата', '', '', '', 'Имя', 'Доходы',
+                                 'Расходы', 'К выплате Мише', 'К выплате Дато', 'К выплате Глебу', 'Выплачено Мише',
+                                 'Выплачено Дато', 'Выплачено Глебу'])
+
+                for i in report:
+                    username = await db.get_user_by_id(i[1])
+                    if username[2] not in global_users_id:
+                        tg_id = await db.get_id_by_username(username[2])
+                        incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha, pays_dato, \
+                            pays_gleb = await db.get_sum_by_user_with_period(tg_id, start, date_object_for_bd)
+                        type_request = i[2]
+                        if type_request == "Выплата":
+                            type_request = "Выплата доли"
+                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6], '', '', '', username[2],
+                                         incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha,
+                                         pays_dato, pays_gleb])
+                        global_users_id.append(username[2])
+                    else:
+                        type_request = i[2]
+                        if type_request == "Выплата":
+                            type_request = "Выплата доли"
+                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6]])
+
+            # await bot.send_document(callback_query.from_user.id,
+            #                         open(f"{callback_query.from_user.username}_отчёт.csv", "rb"),
+            #                         caption="excel файл")
+            cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato, \
+                to_pay_gleb = await db.get_all_info_without_user()
+
+            await bot.send_document(callback_query.from_user.id,
+                                    open(f"{callback_query.from_user.username}_отчёт.csv", "rb"),
+                                    caption=f"Наши показатели за период с {start.strftime('%#d %B %Y')} по "
+                                            f"{date_object_for_bd.strftime('%#d %B %Y')}:\n"
+                                            f"Доходы: {cur_month_incomes} руб.\n"
+                                            f"Расходы: {cur_month_expenses} руб.\n"
+                                            f"Прибыль: {profit} руб.\n"
+                                            f"Выплаченные доли: {cur_month_pays} руб.\n"
+                                            f"В кассе: {in_cashier} руб.\n\n"
+                                            f"Доли к выплате:\n"
+                                            f"Дато: {str(to_pay_dato)[:str(to_pay_dato).index('.') + 3]} руб.\n"
+                                            f"Миша: {str(to_pay_misha)[:str(to_pay_misha).index('.') + 3]} руб.\n"
+                                            f"Глеб: {str(to_pay_gleb)[:str(to_pay_gleb).index('.') + 3]} руб.",
+                                    reply_markup=main_menu_keyboard)
+
+        except aiogram.utils.exceptions.MessageTextIsEmpty:
+            await bot.send_message(callback_query.from_user.id, "Брат, по выбранному периоду нет инфы")
+
         await state.reset_state()
-        await bot.send_message(callback_query.from_user.id, "Меню", reply_markup=main_menu_keyboard)
+        await bot.send_message(callback_query.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
         await MenuStates.start.set()
 
 
