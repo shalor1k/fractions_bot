@@ -2,7 +2,7 @@ import datetime
 
 import psycopg2
 
-conn = psycopg2.connect(dbname='fractions', user='postgres', password='bd260703', host='192.168.0.10')
+conn = psycopg2.connect(dbname='fractions', user='postgres', password='AiRa6779', host='localhost')
 cur = conn.cursor()
 
 
@@ -174,7 +174,7 @@ async def get_user_by_id(db_id: int) -> tuple:
         print(f"Ошибка в get_user_by_id {e}")
 
 
-async def get_id_by_username(username: str) -> str:
+async def get_id_by_username(username: str) -> int:
     try:
         cur.execute(f"SELECT tg_id FROM users WHERE username = '{username}'")
         tg_id = cur.fetchone()
@@ -323,12 +323,18 @@ async def get_all_info_without_user_with_period(start_date: str, end_date: str) 
                 f"date >= '{start_date}' AND date <= '{end_date}'")
     cur_period_incomes = cur.fetchone()[0]
 
+    if cur_period_incomes is None:
+        cur_period_incomes = 0
+
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход'")
     all_incomes = cur.fetchone()[0]
 
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход' AND "
                 f"date >= '{start_date}' AND date <= '{end_date}'")
     cur_period_expenses = cur.fetchone()[0]
+
+    if cur_period_expenses is None:
+        cur_period_expenses = 0
 
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход'")
     all_expenses = cur.fetchone()[0]
@@ -338,6 +344,9 @@ async def get_all_info_without_user_with_period(start_date: str, end_date: str) 
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата' AND "
                 f"date >= '{start_date}' AND date <= '{end_date}'")
     cur_period_pays = cur.fetchone()[0]
+
+    if cur_period_pays is None:
+        cur_period_pays = 0
 
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата'")
     all_pays = cur.fetchone()[0]
@@ -361,3 +370,25 @@ async def get_all_info_without_user_with_period(start_date: str, end_date: str) 
             float(all_incomes-all_expenses)*0.4-float(to_pay_misha),
             float(all_incomes-all_expenses)*0.24-float(to_pay_dato),
             float(all_incomes-all_expenses)*0.3-float(to_pay_gleb)]
+
+
+async def get_in_cashier_all() -> float:
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход'")
+    all_incomes = cur.fetchone()[0]
+
+    if all_incomes is None:
+        all_incomes = 0
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход'")
+    all_expenses = cur.fetchone()[0]
+
+    if all_expenses is None:
+        all_expenses = 0
+
+    cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата'")
+    all_pays = cur.fetchone()[0]
+
+    if all_pays is None:
+        all_pays = 0
+
+    return all_incomes - all_expenses - all_pays

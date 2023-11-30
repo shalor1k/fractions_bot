@@ -44,6 +44,17 @@ class MenuStates(StatesGroup):
     send_report = State()
 
 
+async def add_dot(price):
+    price_str = str(price)
+    index = len(price_str) - 3
+
+    while index > 0:
+        price_str = price_str[:index] + '.' + price_str[index:]
+        index -= 3
+
+    return price_str
+
+
 def generate_prev_month_button(year, month):
     # Вычисляем предыдущий месяц
     prev_month = month - 1
@@ -461,12 +472,12 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 for path in video_for_save:
                     if video_for_save.index(path) == 0:
-                        media.attach_photo(types.InputMediaVideo(open(path, 'rb'),
+                        media.attach_video(types.InputMediaVideo(open(path, 'rb'),
                                                                  caption=f"#расход\n"
                                                                          f"@{message.from_user.username} {expense} руб."
                                                                          f" {comment}"))
                     else:
-                        media.attach_photo(types.InputMediaVideo(open(path, 'rb')))
+                        media.attach_video(types.InputMediaVideo(open(path, 'rb')))
                 await bot.send_media_group(chat_id=message.from_user.id, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
@@ -754,12 +765,12 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
 
                 for path in photos_for_save:
                     if photos_for_save.index(path) == 0:
-                        media.attach_photo(types.InputMediaVideo(open(path, 'rb'),
+                        media.attach_video(types.InputMediaVideo(open(path, 'rb'),
                                                                  caption=f"#доход\n"
                                                                          f"@{message.from_user.username} {income} руб."
                                                                          f" {comment}"))
                     else:
-                        media.attach_photo(types.InputMediaVideo(open(path, 'rb')))
+                        media.attach_video(types.InputMediaVideo(open(path, 'rb')))
                 await bot.send_media_group(chat_id=message.from_user.id, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
@@ -972,54 +983,106 @@ async def report_handle(message: types.Message, state: FSMContext):
             await MenuStates.start.set()
 
         case "Текущий месяц":
-            report = await db.report_cur_month()
-
             await bot.send_message(message.from_user.id, "Генерирую отчёт")
 
+            if os.path.exists(f"{message.from_user.username}_отчёт.csv"):
+                # если файл существует, удаляем его
+                os.remove(f"{message.from_user.username}_отчёт.csv")
+
+            # теперь создаем новый файл
             with open(f"{message.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
-                global_users_id = []
+                # добавьте здесь код для записи данных в файл, если это необходимо
+                pass
 
+            report = await db.report_cur_month()
+
+            with open(f"{message.from_user.username}_отчёт.csv", mode='r', newline='', encoding='utf-8') as file:
+                reader = csv.reader(file)
+                lines = list(reader)
+
+            with open(f"{message.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
                 writer = csv.writer(file)
-                writer.writerow(["Все данные за текущий месяц", '', '', '', '', '', '', '',
-                                 'Суммарно каждый пользователь'])
-                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий', 'Дата', '', '', '', 'Имя', 'Доходы', 'Расходы',
-                                 'К выплате Мише', 'К выплате Дато', 'К выплате Глебу', 'Выплачено Мише',
-                                 'Выплачено Дато', 'Выплачено Глебу'])
 
-                for i in report:
-                    username = await db.get_user_by_id(i[1])
+                writer.writerow(["Все данные за текущий месяц"])
+                writer.writerow(["", "Дата", "Доходы", "Комментарии", "Расходы", "Комментарии", "Выплата доли",
+                                 "Получатель доли"])
+                sorted_report = sorted(report, key=lambda x: x[-1])
 
-                    if username[2] not in global_users_id:
-                        tg_id = await db.get_id_by_username(username[2])
-                        incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha, pays_dato, \
-                            pays_gleb = await db.get_sum_by_user(tg_id)
-                        type_request = i[2]
-                        if type_request == "Выплата":
-                            type_request = "Выплата доли"
-                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6], '', '', '', username[2],
-                                         incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha,
-                                         pays_dato, pays_gleb])
-                        global_users_id.append(username[2])
-                    else:
-                        type_request = i[2]
-                        if type_request == "Выплата":
-                            type_request = "Выплата доли"
-                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6]])
+                incomes = []
+                expenses = []
+                paid = []
+
+                for i in sorted_report:
+                    if i[2] == "Доход":
+                        incomes.append(i)
+                    elif i[2] == "Расход":
+                        expenses.append(i)
+                    elif i[2] == "Выплата":
+                        paid.append(i)
+
+                print(f"-------incomes--------{incomes}")
+                print(f"-------expenses--------{expenses}")
+                print(f"-------paid--------{paid}")
+
+                if len(lines) < len(sorted_report):
+                    # Создаем необходимое количество пустых строк
+                    for _ in range(len(sorted_report) - len(lines)):
+                        lines.append([''] * 8)
+
+                incomes_sum = sum(item[3] for item in sorted_report if item[2] == "Доход")
+                expense_sum = sum(item[3] for item in sorted_report if item[2] == "Расход")
+                paid_sum = sum(item[3] for item in sorted_report if item[2] == "Выплата")
+
+                in_cashier_all = await db.get_in_cashier_all()
+
+                incomes_cnt = 0
+                expenses_cnt = 0
+                paid_cnt = 0
+
+                for i in sorted_report:
+                    if i[2] == "Доход":
+                        lines[incomes_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[incomes_cnt][2] = await add_dot(i[3])
+                        lines[incomes_cnt][3] = i[5]
+                        incomes_cnt += 1
+
+                    elif i[2] == "Расход":
+                        lines[expenses_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[expenses_cnt][4] = await add_dot(i[3])
+                        lines[expenses_cnt][5] = i[5]
+                        expenses_cnt += 1
+
+                    elif i[2] == "Выплата":
+                        lines[paid_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[paid_cnt][6] = await add_dot(i[3])
+                        lines[paid_cnt][7] = i[5]
+                        paid_cnt += 1
+
+                writer.writerows(lines)
+                writer.writerow(['Всего', '', f'{await add_dot(incomes_sum)}', '', f'{await add_dot(expense_sum)}',
+                                 '', f'{await add_dot(paid_sum)}'])
+                writer.writerow(['Прибыль за период', f'{await add_dot(incomes_sum-expense_sum)}'])
+                writer.writerow(['Поступления/расход кассы за этот месяц',
+                                 f'{await add_dot(incomes_sum-expense_sum-paid_sum)}'])
+                writer.writerow(['В кассе всего', f'{await add_dot(in_cashier_all)}'])
 
             cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato,\
                 to_pay_gleb = await db.get_all_info_without_user()
 
             await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_отчёт.csv", "rb"),
                                     caption=f"Наши показатели за текущий месяц:\n"
-                                            f"Доходы: {cur_month_incomes} руб.\n"
-                                            f"Расходы: {cur_month_expenses} руб.\n"
-                                            f"Прибыль: {profit} руб.\n"
-                                            f"Выплаченные доли: {cur_month_pays} руб.\n"
-                                            f"В кассе: {in_cashier} руб.\n\n"
+                                            f"Доходы: {await add_dot(cur_month_incomes)} руб.\n"
+                                            f"Расходы: {await add_dot(cur_month_expenses)} руб.\n"
+                                            f"Прибыль: {await add_dot(profit)} руб.\n"
+                                            f"Выплаченные доли: {await add_dot(cur_month_pays)} руб.\n"
+                                            f"В кассе: {await add_dot(in_cashier)} руб.\n\n"
                                             f"Доли к выплате:\n"
-                                            f"Дато: {str(to_pay_dato)[:str(to_pay_dato).index('.') + 3]} руб.\n"
-                                            f"Миша: {str(to_pay_misha)[:str(to_pay_misha).index('.') + 3]} руб.\n"
-                                            f"Глеб: {str(to_pay_gleb)[:str(to_pay_gleb).index('.') + 3]} руб.",
+                                            f"Миша: {await add_dot(str(to_pay_misha)[:str(to_pay_misha).index('.')])}"
+                                            f" руб.\n"
+                                            f"Глеб: {await add_dot(str(to_pay_gleb)[:str(to_pay_gleb).index('.')])}"
+                                            f" руб.\n"
+                                            f"Дато: {await add_dot(str(to_pay_dato)[:str(to_pay_dato).index('.')])}"
+                                            f" руб.",
                                     reply_markup=main_menu_keyboard)
 
             await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
@@ -1091,46 +1154,129 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
         async with state.proxy() as data:
             data["end"] = date_object_for_bd
             start = data["start"]
-        report = await db.report_period(start, date_object_for_bd)
+        report = await db.report_period(start, str(date_object_for_bd))
+
+        print(start)
+        print(date_object_for_bd)
 
         await bot.send_message(callback_query.from_user.id, "Генерирую отчёт")
 
         try:
-            with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8')\
-                    as file:
-                global_users_id = []
-
-                writer = csv.writer(file)
-                writer.writerow(["Все данные за текущий месяц", '', '', '', '', '', '', '',
-                                 'Суммарно каждый пользователь'])
-                writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий', 'Дата', '', '', '', 'Имя', 'Доходы',
-                                 'Расходы', 'К выплате Мише', 'К выплате Дато', 'К выплате Глебу', 'Выплачено Мише',
-                                 'Выплачено Дато', 'Выплачено Глебу'])
-
-                for i in report:
-                    username = await db.get_user_by_id(i[1])
-                    if username[2] not in global_users_id:
-                        tg_id = await db.get_id_by_username(username[2])
-                        incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha, pays_dato, \
-                            pays_gleb = await db.get_sum_by_user_with_period(tg_id, start, date_object_for_bd)
-                        type_request = i[2]
-                        if type_request == "Выплата":
-                            type_request = "Выплата доли"
-                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6], '', '', '', username[2],
-                                         incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha,
-                                         pays_dato, pays_gleb])
-                        global_users_id.append(username[2])
-                    else:
-                        type_request = i[2]
-                        if type_request == "Выплата":
-                            type_request = "Выплата доли"
-                        writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6]])
+            # with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8')\
+            #         as file:
+                # global_users_id = []
+                #
+                # writer = csv.writer(file)
+                # writer.writerow(["Все данные за текущий месяц", '', '', '', '', '', '', '',
+                #                  'Суммарно каждый пользователь'])
+                # writer.writerow(['Имя', 'Тип', 'Сумма', 'Комментарий', 'Дата', '', '', '', 'Имя', 'Доходы',
+                #                  'Расходы', 'К выплате Мише', 'К выплате Дато', 'К выплате Глебу', 'Выплачено Мише',
+                #                  'Выплачено Дато', 'Выплачено Глебу'])
+                #
+                # for i in report:
+                #     username = await db.get_user_by_id(i[1])
+                #     if username[2] not in global_users_id:
+                #         tg_id = await db.get_id_by_username(username[2])
+                #         incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha, pays_dato, \
+                #             pays_gleb = await db.get_sum_by_user_with_period(tg_id, start, str(date_object_for_bd))
+                #         type_request = i[2]
+                #         if type_request == "Выплата":
+                #             type_request = "Выплата доли"
+                #         writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6], '', '', '', username[2],
+                #                          incomes, expenses, to_pay_misha, to_pay_dato, to_pay_gleb, pays_misha,
+                #                          pays_dato, pays_gleb])
+                #         global_users_id.append(username[2])
+                #     else:
+                #         type_request = i[2]
+                #         if type_request == "Выплата":
+                #             type_request = "Выплата доли"
+                #         writer.writerow([username[2], type_request, f'{i[3]} руб.', i[5], i[6]])
 
             # await bot.send_document(callback_query.from_user.id,
             #                         open(f"{callback_query.from_user.username}_отчёт.csv", "rb"),
             #                         caption="excel файл")
+
+            if os.path.exists(f"{callback_query.from_user.username}_отчёт.csv"):
+                # если файл существует, удаляем его
+                os.remove(f"{callback_query.from_user.username}_отчёт.csv")
+
+            # теперь создаем новый файл
+            with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
+                # добавьте здесь код для записи данных в файл, если это необходимо
+                pass
+
+            with open(f"{callback_query.from_user.username}_отчёт.csv", mode='r', newline='', encoding='utf-8') as file:
+                reader = csv.reader(file)
+                lines = list(reader)
+
+            with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+
+                writer.writerow([f"Все данные за период с {start.strftime('%#d %B %Y')} по"
+                                 f" {date_object_for_bd.strftime('%#d %B %Y')}"])
+                writer.writerow(["", "Дата", "Доходы", "Комментарии", "Расходы", "Комментарии", "Выплата доли",
+                                 "Получатель доли"])
+                sorted_report = sorted(report, key=lambda x: x[-1])
+
+                incomes = []
+                expenses = []
+                paid = []
+
+                for i in sorted_report:
+                    if i[2] == "Доход":
+                        incomes.append(i)
+                    elif i[2] == "Расход":
+                        expenses.append(i)
+                    elif i[2] == "Выплата":
+                        paid.append(i)
+
+                print(f"-------incomes--------{incomes}")
+                print(f"-------expenses--------{expenses}")
+                print(f"-------paid--------{paid}")
+
+                if len(lines) < len(sorted_report):
+                    # Создаем необходимое количество пустых строк
+                    for _ in range(len(sorted_report) - len(lines)):
+                        lines.append([''] * 8)
+
+                incomes_sum = sum(item[3] for item in sorted_report if item[2] == "Доход")
+                expense_sum = sum(item[3] for item in sorted_report if item[2] == "Расход")
+                paid_sum = sum(item[3] for item in sorted_report if item[2] == "Выплата")
+
+                in_cashier_all = await db.get_in_cashier_all()
+
+                incomes_cnt = 0
+                expenses_cnt = 0
+                paid_cnt = 0
+
+                for i in sorted_report:
+                    if i[2] == "Доход":
+                        lines[incomes_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[incomes_cnt][2] = await add_dot(i[3])
+                        lines[incomes_cnt][3] = i[5]
+                        incomes_cnt += 1
+
+                    elif i[2] == "Расход":
+                        lines[expenses_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[expenses_cnt][4] = await add_dot(i[3])
+                        lines[expenses_cnt][5] = i[5]
+                        expenses_cnt += 1
+
+                    elif i[2] == "Выплата":
+                        lines[paid_cnt][1] = i[-1].strftime("%d.%m.%Y")
+                        lines[paid_cnt][6] = await add_dot(i[3])
+                        lines[paid_cnt][7] = i[5]
+                        paid_cnt += 1
+
+                writer.writerows(lines)
+                writer.writerow(['Всего', '', f'{await add_dot(incomes_sum)}', '', f'{await add_dot(expense_sum)}',
+                                 '', f'{await add_dot(paid_sum)}'])
+                writer.writerow(['Прибыль за период', f'{await add_dot(incomes_sum - expense_sum)}'])
+                writer.writerow(['Поступления/расход кассы за период',
+                                 f'{await add_dot(incomes_sum - expense_sum - paid_sum)}'])
+                writer.writerow(['В кассе всего', f'{await add_dot(in_cashier_all)}'])
             cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato, \
-                to_pay_gleb = await db.get_all_info_without_user()
+                to_pay_gleb = await db.get_all_info_without_user_with_period(start, str(date_object_for_bd))
 
             await bot.send_document(callback_query.from_user.id,
                                     open(f"{callback_query.from_user.username}_отчёт.csv", "rb"),
