@@ -2,7 +2,7 @@ import psycopg2
 from prettytable import PrettyTable
 
 # Установите соединение с базой данных PostgreSQL
-connection = psycopg2.connect(dbname='fraction', user='shalor1k',
+connection = psycopg2.connect(dbname='fractions', user='shalor1k',
                               password='bd260703', host='localhost')
 # Создание курсора
 cursor = connection.cursor()

@@ -2,7 +2,7 @@ import datetime
 
 import psycopg2
 
-conn = psycopg2.connect(dbname='fractions', user='postgres', password='AiRa6779', host='localhost')
+conn = psycopg2.connect(dbname='fractions', user='shalor1k', password='ffff', host='localhost')
 cur = conn.cursor()
 
 
@@ -278,15 +278,27 @@ async def get_all_info_without_user() -> list:
                 f"{datetime.datetime.now().month}")
     cur_month_incomes = cur.fetchone()[0]
 
+    if cur_month_incomes is None:
+        cur_month_incomes = 0
+
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Доход'")
     all_incomes = cur.fetchone()[0]
+
+    if all_incomes is None:
+        all_incomes = 0
 
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход' AND DATE_PART('month', date) = "
                 f"{datetime.datetime.now().month}")
     cur_month_expenses = cur.fetchone()[0]
 
+    if cur_month_expenses is None:
+        cur_month_expenses = 0
+
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Расход'")
     all_expenses = cur.fetchone()[0]
+
+    if all_expenses is None:
+        all_expenses = 0
 
     profit = cur_month_incomes - cur_month_expenses
 
@@ -294,8 +306,14 @@ async def get_all_info_without_user() -> list:
                 f"{datetime.datetime.now().month}")
     cur_month_pays = cur.fetchone()[0]
 
+    if cur_month_pays is None:
+        cur_month_pays = 0
+
     cur.execute(f"SELECT SUM(amount) FROM users_finances WHERE type = 'Выплата'")
     all_pays = cur.fetchone()[0]
+
+    if all_pays is None:
+        all_pays = 0
 
     in_cashier = all_incomes - all_expenses - all_pays
 
@@ -369,7 +387,7 @@ async def get_all_info_without_user_with_period(start_date: str, end_date: str) 
     return [cur_period_incomes, cur_period_expenses, profit, cur_period_pays, in_cashier,
             float(all_incomes-all_expenses)*0.4-float(to_pay_misha),
             float(all_incomes-all_expenses)*0.24-float(to_pay_dato),
-            float(all_incomes-all_expenses)*0.3-float(to_pay_gleb)]
+            float(all_incomes-all_expenses)*0.36-float(to_pay_gleb)]
 
 
 async def get_in_cashier_all() -> float:

@@ -15,11 +15,15 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils import executor
 import calendar
 import datetime
+import locale
 
 import db
 
 # Хранение памяти для машины состояний
 storage = MemoryStorage()
+
+# Устанавливаем русскую локаль
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 
 class MenuStates(StatesGroup):
@@ -129,7 +133,7 @@ def gen_markup(texts: int, prefix: str, row_width: int) -> InlineKeyboardMarkup:
 logging.basicConfig(level=logging.INFO)
 
 # Создаём бота исходя из полученного токена
-bot = Bot(token="6395802297:AAGSL6IBKgTVN8dPRHNVjUzLHuLCHy_y5lM")
+bot = Bot(token="6432384549:AAErHbwSnrraOBa5NUfOF8iCt9LTkevUfKk")
 dp = Dispatcher(bot, storage=storage)
 dp.middleware.setup(LoggingMiddleware())
 
@@ -232,8 +236,7 @@ async def handle_text(message: types.Message, state: FSMContext):
 
         case _:
             async with state.proxy() as data:
-                if "comment" not in data:
-                    data["comment"] = message.text
+                data["comment"] = message.text
             await bot.send_message(message.from_user.id, "Есть чеки или другое подтверждение?",
                                    reply_markup=yes_or_no_keyboard)
             await MenuStates.expense_approve_enter_file.set()
@@ -261,7 +264,7 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
                 writer.writerow([message.from_user.username, "Расход", f'{expense} руб.', comment])
 
-            await bot.send_message(message.from_user.id, f"#расход\n"
+            await bot.send_message(-4085464321, f"#расход\n"
                                                          f"@{message.from_user.username} {expense} руб. {comment}")
 
             # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
@@ -378,7 +381,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_photo(types.InputMediaPhoto(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
                 #                         caption="#расход")
@@ -428,7 +431,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_photo(types.InputMediaDocument(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
                 #                         caption="#расход")
@@ -478,7 +481,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_video(types.InputMediaVideo(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_расход.csv", "rb"),
                 #                         caption="#расход")
@@ -571,7 +574,7 @@ async def handle_approve_photos(message: types.Message, state: FSMContext):
 
             # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
             #                         caption="#доход")
-            await bot.send_message(message.from_user.id, f"#доход\n"
+            await bot.send_message(-4085464321, f"#доход\n"
                                                          f"@{message.from_user.username} {income} руб. {comment}")
 
             # Очистка состояния
@@ -680,7 +683,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_photo(types.InputMediaPhoto(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
 
             except KeyError:
                 pass
@@ -727,7 +730,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_photo(types.InputMediaDocument(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
                 #                         caption="#доход")
 
@@ -771,7 +774,7 @@ async def choose_will_be_photo(message: types.Message, state: FSMContext):
                                                                          f" {comment}"))
                     else:
                         media.attach_video(types.InputMediaVideo(open(path, 'rb')))
-                await bot.send_media_group(chat_id=message.from_user.id, media=media)
+                await bot.send_media_group(chat_id=-4085464321, media=media)
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_доход.csv", "rb"),
                 #                         caption="#доход")
@@ -872,7 +875,7 @@ async def fraction_pay_handle(message: types.Message, state: FSMContext):
 
                 # await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_выплата.csv", "rb"),
                 #                         caption="#доля")
-                await bot.send_message(message.from_user.id, f"#доля\n"
+                await bot.send_message(-4085464321, f"#доля\n"
                                                              f"@{message.from_user.username} {amount} руб. {to_who}")
 
                 await MenuStates.start.set()
@@ -1065,6 +1068,15 @@ async def report_handle(message: types.Message, state: FSMContext):
             cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato,\
                 to_pay_gleb = await db.get_all_info_without_user()
 
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Миша")
+            debt_misha = cur_debt * 0.4 - cur_payment
+
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Дато")
+            debt_dato = cur_debt * 0.24 - cur_payment
+
+            cur_debt, cur_payment = await db.select_fraction(message.from_user.id, "Глеб")
+            debt_gleb = cur_debt * 0.36 - cur_payment
+
             await bot.send_document(message.from_user.id, open(f"{message.from_user.username}_отчёт.csv", "rb"),
                                     caption=f"Наши показатели за текущий месяц:\n"
                                             f"Доходы: {await add_dot(cur_month_incomes)} руб.\n"
@@ -1073,12 +1085,9 @@ async def report_handle(message: types.Message, state: FSMContext):
                                             f"Выплаченные доли: {await add_dot(cur_month_pays)} руб.\n"
                                             f"В кассе: {await add_dot(in_cashier)} руб.\n\n"
                                             f"Доли к выплате:\n"
-                                            f"Миша: {await add_dot(str(to_pay_misha)[:str(to_pay_misha).index('.')])}"
-                                            f" руб.\n"
-                                            f"Глеб: {await add_dot(str(to_pay_gleb)[:str(to_pay_gleb).index('.')])}"
-                                            f" руб.\n"
-                                            f"Дато: {await add_dot(str(to_pay_dato)[:str(to_pay_dato).index('.')])}"
-                                            f" руб.",
+                                            f"Миша: {await add_dot(str(int(debt_misha)))} руб.\n"
+                                            f"Дато: {await add_dot(str(int(debt_dato)))} руб.\n"
+                                            f"Глеб: {await add_dot(str(int(debt_gleb)))} руб.",
                                     reply_markup=main_menu_keyboard)
 
             await bot.send_message(message.from_user.id, "И снова здравствуйте", reply_markup=main_menu_keyboard)
@@ -1088,7 +1097,7 @@ async def report_handle(message: types.Message, state: FSMContext):
         case "Период":
             calenda = generate_calendar(datetime.datetime.now().year, datetime.datetime.now().month)
             await bot.send_message(message.from_user.id, 'Сегодня - ' +
-                                   str(datetime.datetime.today().strftime("%#d %B %Y")), reply_markup=back_keyboard)
+                                   str(datetime.datetime.today().strftime("%-d %B %Y")), reply_markup=back_keyboard)
             await bot.send_message(message.from_user.id, "Выбери дату начала отчётного периода",
                                    reply_markup=calenda)
             await MenuStates.choose_second_period.set()
@@ -1175,8 +1184,8 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
                 with open(f"{callback_query.from_user.username}_отчёт.csv", mode='w', newline='', encoding='utf-8') as file:
                     writer = csv.writer(file)
 
-                    writer.writerow([f"Все данные за период с {start.strftime('%#d %B %Y')} по"
-                                     f" {date_object_for_bd.strftime('%#d %B %Y')}"])
+                    writer.writerow([f"Все данные за период с {start.strftime('%-d %B %Y')} по"
+                                     f" {date_object_for_bd.strftime('%-d %B %Y')}"])
                     writer.writerow(["", "Дата", "Доходы", "Комментарии", "Расходы", "Комментарии", "Выплата доли",
                                      "Получатель доли"])
                     sorted_report = sorted(report, key=lambda x: x[-1])
@@ -1241,19 +1250,28 @@ async def day_chosen(callback_query: types.CallbackQuery, state: FSMContext):
                 cur_month_incomes, cur_month_expenses, profit, cur_month_pays, in_cashier, to_pay_misha, to_pay_dato, \
                     to_pay_gleb = await db.get_all_info_without_user_with_period(start, str(date_object_for_bd))
 
+                cur_debt, cur_payment = await db.select_fraction(callback_query.from_user.id, "Миша")
+                debt_misha = cur_debt * 0.4 - cur_payment
+
+                cur_debt, cur_payment = await db.select_fraction(callback_query.from_user.id, "Дато")
+                debt_dato = cur_debt * 0.24 - cur_payment
+
+                cur_debt, cur_payment = await db.select_fraction(callback_query.from_user.id, "Глеб")
+                debt_gleb = cur_debt * 0.36 - cur_payment
+
                 await bot.send_document(callback_query.from_user.id,
                                         open(f"{callback_query.from_user.username}_отчёт.csv", "rb"),
-                                        caption=f"Наши показатели за период с {start.strftime('%#d %B %Y')} по "
-                                                f"{date_object_for_bd.strftime('%#d %B %Y')}:\n"
-                                                f"Доходы: {cur_month_incomes} руб.\n"
-                                                f"Расходы: {cur_month_expenses} руб.\n"
-                                                f"Прибыль: {profit} руб.\n"
-                                                f"Выплаченные доли: {cur_month_pays} руб.\n"
-                                                f"В кассе: {in_cashier} руб.\n\n"
+                                        caption=f"Наши показатели за период с {start.strftime('%-d %B %Y')} по "
+                                                f"{date_object_for_bd.strftime('%-d %B %Y')}:\n"
+                                                f"Доходы: {await add_dot(cur_month_incomes)} руб.\n"
+                                                f"Расходы: {await add_dot(cur_month_expenses)} руб.\n"
+                                                f"Прибыль: {await add_dot(profit)} руб.\n"
+                                                f"Выплаченные доли: {await add_dot(cur_month_pays)} руб.\n"
+                                                f"В кассе: {await add_dot(in_cashier)} руб.\n\n"
                                                 f"Доли к выплате:\n"
-                                                f"Дато: {str(to_pay_dato)[:str(to_pay_dato).index('.') + 3]} руб.\n"
-                                                f"Миша: {str(to_pay_misha)[:str(to_pay_misha).index('.') + 3]} руб.\n"
-                                                f"Глеб: {str(to_pay_gleb)[:str(to_pay_gleb).index('.') + 3]} руб.",
+                                                f"Миша: {await add_dot(str(int(debt_misha)))} руб.\n"
+                                                f"Дато: {await add_dot(str(int(debt_dato)))} руб.\n"
+                                                f"Глеб: {await add_dot(str(int(debt_gleb)))} руб.",
                                         reply_markup=main_menu_keyboard)
 
             except aiogram.utils.exceptions.MessageTextIsEmpty:
